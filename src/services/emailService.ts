@@ -231,4 +231,70 @@ EduCare Team`
       throw new Error('Failed to schedule automatic reminders');
     }
   }
+
+  static async sendBirthdayWishes(student: any) {
+    try {
+      // Prepare birthday email content
+      const emailContent = this.generateBirthdayWishesEmail(student);
+
+      // Determine recipient email (prefer parent email for minors)
+      const recipientEmail = student.parentEmail || student.email;
+
+      if (!recipientEmail) {
+        throw new Error('No email address available for this student');
+      }
+
+      // In a real application, you would send the email here
+      // For demo purposes, we'll log the communication and show a success message
+
+      // Log the communication
+      await this.logCommunication({
+        student_id: student.id,
+        type: 'email',
+        subject: emailContent.subject,
+        message: emailContent.body,
+        recipient: recipientEmail,
+        status: 'sent'
+      });
+
+      return { success: true, message: 'Birthday wishes sent successfully' };
+    } catch (error) {
+      console.error('Error sending birthday wishes:', error);
+      throw new Error('Failed to send birthday wishes');
+    }
+  }
+
+  private static generateBirthdayWishesEmail(student: any) {
+    const subject = `🎉 Happy Birthday ${student.name}! 🎂`;
+
+    const body = `
+Dear ${student.name},
+
+🎉 Happy Birthday! 🎂
+
+On behalf of everyone at EduCare, we want to wish you a very happy ${student.age}th birthday!
+
+We hope your special day is filled with joy, laughter, and all your favorite things. You are such a wonderful student, and we feel lucky to be part of your educational journey.
+
+May this new year of life bring you:
+✨ Amazing adventures and discoveries
+📚 Continued success in your studies
+🌟 Happiness and good health
+🎯 Achievement of all your dreams
+
+We're excited to celebrate with you and look forward to seeing you in class soon!
+
+Have a fantastic birthday celebration! 🎈
+
+With warm birthday wishes,
+The EduCare Team
+
+P.S. Don't forget to treat yourself to something special today - you deserve it! 🍰
+
+---
+This birthday message was sent with love from the EduCare Student Management System.
+    `.trim();
+
+    return { subject, body };
+  }
 }
