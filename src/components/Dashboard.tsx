@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import WelcomeHeader from './dashboard/WelcomeHeader';
 import KPICards from './dashboard/KPICards';
 import LeadPipeline from './dashboard/LeadPipeline';
@@ -6,13 +7,27 @@ import QuickActions from './dashboard/QuickActions';
 import TaskAutomation from './dashboard/TaskAutomation';
 import AttendanceHeatmap from './dashboard/AttendanceHeatmap';
 import AddLeadModal from './modals/AddLeadModal';
+import TeacherDashboard from './TeacherDashboard';
+import AccountantDashboard from './AccountantDashboard';
 
 interface DashboardProps {
   setActiveView?: (view: string) => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ setActiveView }) => {
+  const { user } = useAuth();
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
+
+  // Route to role-specific dashboards
+  if (user?.role === 'teacher') {
+    return <TeacherDashboard />;
+  }
+
+  if (user?.role === 'accountant') {
+    return <AccountantDashboard />;
+  }
+
+  // Default dashboard for super_admin and office_staff
   const handleQuickAction = (action: string) => {
     switch (action) {
       case 'add-lead':
@@ -34,7 +49,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView }) => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pt-4">
       <WelcomeHeader />
       <KPICards />
 

@@ -1,18 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp, Users, DollarSign, Download, Calendar, Filter, FileText, PieChart, Activity } from 'lucide-react';
+import { BarChart3, TrendingUp, Users, DollarSign, Download, Calendar, Filter, FileText, PieChart, Activity, UserCog } from 'lucide-react';
 import { DataService } from '../services/dataService';
+import { useAuth } from '../contexts/AuthContext';
+import { hasPermission } from '../utils/roleUtils';
+import StudentReportGenerator from './StudentReportGenerator';
 
 const Reports: React.FC = () => {
+  const { user } = useAuth();
   const [reportData, setReportData] = useState({
     students: [],
     leads: [],
     fees: [],
     classes: [],
-    communications: []
+    communications: [],
+    staff: []
   });
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState('6months');
   const [reportType, setReportType] = useState('overview');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [selectedUser, setSelectedUser] = useState('');
+  const [showStudentReports, setShowStudentReports] = useState(false);
+
+  // For teachers, show student reports by default
+  useEffect(() => {
+    if (user?.role === 'teacher') {
+      setShowStudentReports(true);
+    }
+  }, [user]);
 
   useEffect(() => {
     fetchReportData();
@@ -21,20 +37,29 @@ const Reports: React.FC = () => {
   const fetchReportData = async () => {
     try {
       setLoading(true);
-      const [students, leads, fees, classes, communications] = await Promise.all([
+      const promises = [
         DataService.getStudents(),
         DataService.getLeads(),
         DataService.getFees(),
         DataService.getClasses(),
         DataService.getCommunications()
-      ]);
+      ];
+
+      // Add staff data for super admin
+      if (hasPermission(user, 'manage_staff')) {
+        promises.push(DataService.getStaff());
+      }
+
+      const results = await Promise.all(promises);
+      const [students, leads, fees, classes, communications, staff] = results;
 
       setReportData({
         students: students || [],
         leads: leads || [],
         fees: fees || [],
         classes: classes || [],
-        communications: communications || []
+        communications: communications || [],
+        staff: staff || []
       });
     } catch (error) {
       console.error('Error fetching report data:', error);
@@ -97,15 +122,36 @@ const Reports: React.FC = () => {
     );
   }
 
+  // Show student report generator for teachers
+  if (showStudentReports && user?.role === 'teacher') {
+    return (
+      <div className="space-y-6 pt-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-secondary-800">Student Reports</h1>
+            <p className="text-secondary-600 mt-1">Generate comprehensive student reports</p>
+          </div>
+          <button
+            onClick={() => setShowStudentReports(false)}
+            className="px-4 py-2 text-secondary-600 hover:text-secondary-800 transition-colors"
+          >
+            View Analytics
+          </button>
+        </div>
+        <StudentReportGenerator />
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pt-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-secondary-800">Reports & Analytics</h1>
           <p className="text-secondary-600 mt-1">Comprehensive insights and data analysis</p>
         </div>
-        <div className="flex space-x-3">
+        <div className="flex flex-wrap gap-3">
           <select
             value={reportType}
             onChange={(e) => setReportType(e.target.value)}
@@ -115,7 +161,52 @@ const Reports: React.FC = () => {
             <option value="students">Students</option>
             <option value="financial">Financial</option>
             <option value="leads">Leads</option>
+            {hasPermission(user, 'manage_staff') && <option value="staff">Staff</option>}
           </select>
+
+          {/* Student Reports Button for Teachers */}
+          {user?.role === 'teacher' && (
+            <button
+              onClick={() => setShowStudentReports(true)}
+              className="flex items-center space-x-2 bg-success-600 hover:bg-success-700 text-white px-4 py-2.5 rounded-xl transition-colors shadow-soft hover:shadow-medium"
+            >
+              <FileText className="w-5 h-5" />
+              <span className="font-medium">Student Reports</span>
+            </button>
+          )}
+
+          {/* Date Range Filters for Super Admin */}
+          {hasPermission(user, 'view_all_reports') && (
+            <>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="px-4 py-2.5 border border-secondary-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                placeholder="Start Date"
+              />
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="px-4 py-2.5 border border-secondary-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                placeholder="End Date"
+              />
+              <select
+                value={selectedUser}
+                onChange={(e) => setSelectedUser(e.target.value)}
+                className="px-4 py-2.5 border border-secondary-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+              >
+                <option value="">All Users</option>
+                {reportData.staff.map((staff: any) => (
+                  <option key={staff.id} value={staff.id}>
+                    {staff.first_name} {staff.last_name} ({staff.role})
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+
           <button
             onClick={exportReport}
             className="flex items-center space-x-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2.5 rounded-xl transition-colors shadow-soft hover:shadow-medium"
@@ -274,6 +365,116 @@ const Reports: React.FC = () => {
           ))}
         </div>
       </div>
+
+      {/* Staff Analytics - Super Admin Only */}
+      {hasPermission(user, 'manage_staff') && reportData.staff.length > 0 && (
+        <div className="bg-white rounded-xl border border-secondary-200 p-6 shadow-soft">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-bold text-secondary-800">Staff Analytics</h3>
+            <UserCog className="w-6 h-6 text-primary-600" />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Staff by Role */}
+            <div>
+              <h4 className="font-semibold text-secondary-800 mb-4">Staff by Role</h4>
+              <div className="space-y-3">
+                {[
+                  { role: 'teacher', label: 'Teachers', color: 'primary' },
+                  { role: 'office_staff', label: 'Office Staff', color: 'warning' },
+                  { role: 'accountant', label: 'Accountants', color: 'success' },
+                  { role: 'super_admin', label: 'Super Admins', color: 'danger' }
+                ].map((roleData) => {
+                  const count = reportData.staff.filter((s: any) => s.role === roleData.role).length;
+                  return (
+                    <div key={roleData.role} className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <div className={`w-3 h-3 rounded-full bg-${roleData.color}-500`}></div>
+                        <span className="text-sm text-secondary-700">{roleData.label}</span>
+                      </div>
+                      <span className="text-sm font-semibold text-secondary-800">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Staff Status */}
+            <div>
+              <h4 className="font-semibold text-secondary-800 mb-4">Staff Status</h4>
+              <div className="space-y-3">
+                {[
+                  { status: 'active', label: 'Active', color: 'success' },
+                  { status: 'inactive', label: 'Inactive', color: 'warning' },
+                  { status: 'terminated', label: 'Terminated', color: 'danger' }
+                ].map((statusData) => {
+                  const count = reportData.staff.filter((s: any) => s.status === statusData.status).length;
+                  return (
+                    <div key={statusData.status} className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <div className={`w-3 h-3 rounded-full bg-${statusData.color}-500`}></div>
+                        <span className="text-sm text-secondary-700">{statusData.label}</span>
+                      </div>
+                      <span className="text-sm font-semibold text-secondary-800">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Salary Overview */}
+            <div>
+              <h4 className="font-semibold text-secondary-800 mb-4">Salary Overview</h4>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-secondary-700">Total Monthly</span>
+                  <span className="text-sm font-semibold text-secondary-800">
+                    ${reportData.staff.reduce((sum: number, s: any) => sum + (s.salary || 0), 0).toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-secondary-700">Average Salary</span>
+                  <span className="text-sm font-semibold text-secondary-800">
+                    ${reportData.staff.length > 0 ? (reportData.staff.reduce((sum: number, s: any) => sum + (s.salary || 0), 0) / reportData.staff.length).toFixed(2) : '0.00'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-secondary-700">Highest Salary</span>
+                  <span className="text-sm font-semibold text-secondary-800">
+                    ${Math.max(...reportData.staff.map((s: any) => s.salary || 0)).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Experience Distribution */}
+            <div>
+              <h4 className="font-semibold text-secondary-800 mb-4">Experience</h4>
+              <div className="space-y-3">
+                {[
+                  { range: '0-2 years', min: 0, max: 2, color: 'primary' },
+                  { range: '3-5 years', min: 3, max: 5, color: 'warning' },
+                  { range: '6-10 years', min: 6, max: 10, color: 'success' },
+                  { range: '10+ years', min: 11, max: 100, color: 'danger' }
+                ].map((expData) => {
+                  const count = reportData.staff.filter((s: any) =>
+                    s.experience_years >= expData.min && s.experience_years <= expData.max
+                  ).length;
+                  return (
+                    <div key={expData.range} className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <div className={`w-3 h-3 rounded-full bg-${expData.color}-500`}></div>
+                        <span className="text-sm text-secondary-700">{expData.range}</span>
+                      </div>
+                      <span className="text-sm font-semibold text-secondary-800">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Recent Activity Summary */}
       <div className="bg-white rounded-xl border border-secondary-200 p-6 shadow-soft">

@@ -124,7 +124,7 @@ const LeadManagement: React.FC = () => {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 pt-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>

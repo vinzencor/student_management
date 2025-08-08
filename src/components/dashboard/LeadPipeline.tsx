@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, User, Phone, Mail } from 'lucide-react';
 import { DataService } from '../../services/dataService';
+import LeadDetailsModal from '../modals/LeadDetailsModal';
+import LeadContactModal from '../modals/LeadContactModal';
 
 interface LeadPipelineProps {
   onAddLead: () => void;
@@ -20,6 +22,9 @@ const LeadPipeline: React.FC<LeadPipelineProps> = ({ onAddLead }) => {
     converted: []
   });
   const [loading, setLoading] = useState(true);
+  const [selectedLead, setSelectedLead] = useState<any>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
 
   useEffect(() => {
     fetchLeads();
@@ -107,7 +112,7 @@ const LeadPipeline: React.FC<LeadPipelineProps> = ({ onAddLead }) => {
 
       try {
         // Update lead status in database
-        await DataService.updateLead(draggedItem, { status: targetColumn });
+        await DataService.updateLead(draggedItem, { status: targetColumn as any });
 
         // Update local state
         setLeads(prev => ({
@@ -124,17 +129,61 @@ const LeadPipeline: React.FC<LeadPipelineProps> = ({ onAddLead }) => {
     setDraggedItem(null);
   };
 
+  const handleContactClick = (lead: any) => {
+    setSelectedLead(lead);
+    setShowContactModal(true);
+  };
+
+  const handleDetailsClick = (lead: any) => {
+    setSelectedLead(lead);
+    setShowDetailsModal(true);
+  };
+
+  const closeModals = () => {
+    setSelectedLead(null);
+    setShowDetailsModal(false);
+    setShowContactModal(false);
+  };
+
   if (loading) {
     return (
-      <div className="bg-white rounded-xl border border-secondary-200 p-6 shadow-soft">
-        <div className="flex items-center justify-between mb-6">
-          <div className="w-32 h-6 bg-secondary-200 rounded animate-pulse"></div>
-          <div className="w-24 h-8 bg-secondary-200 rounded animate-pulse"></div>
+      <div className="bg-white rounded-xl border border-secondary-200 p-4 lg:p-6 shadow-soft">
+        {/* Loading Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <div className="w-32 lg:w-40 h-6 lg:h-7 bg-secondary-200 rounded animate-pulse"></div>
+            <div className="w-48 lg:w-64 h-4 bg-secondary-200 rounded animate-pulse mt-2"></div>
+          </div>
+          <div className="w-full sm:w-24 h-10 bg-secondary-200 rounded-xl animate-pulse"></div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+
+        {/* Loading Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
           {[1, 2, 3, 4].map(i => (
             <div key={i} className="space-y-4">
-              <div className="w-full h-20 bg-secondary-200 rounded animate-pulse"></div>
+              <div className="flex items-center justify-between px-2">
+                <div className="w-20 h-4 bg-secondary-200 rounded animate-pulse"></div>
+                <div className="w-6 h-6 bg-secondary-200 rounded-full animate-pulse"></div>
+              </div>
+              <div className="min-h-[400px] lg:min-h-[500px] bg-secondary-100 rounded-xl p-3 lg:p-4">
+                <div className="space-y-3">
+                  {[1, 2].map(j => (
+                    <div key={j} className="bg-white p-3 lg:p-4 rounded-xl">
+                      <div className="flex items-start space-x-2 mb-3">
+                        <div className="w-8 h-8 bg-secondary-200 rounded-full animate-pulse"></div>
+                        <div className="flex-1">
+                          <div className="w-24 h-4 bg-secondary-200 rounded animate-pulse"></div>
+                          <div className="w-32 h-3 bg-secondary-200 rounded animate-pulse mt-2"></div>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="w-28 h-3 bg-secondary-200 rounded animate-pulse"></div>
+                        <div className="w-36 h-3 bg-secondary-200 rounded animate-pulse"></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           ))}
         </div>
@@ -143,30 +192,40 @@ const LeadPipeline: React.FC<LeadPipelineProps> = ({ onAddLead }) => {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-secondary-200 p-6 shadow-soft">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-secondary-800">Lead Pipeline</h2>
+    <div className="bg-white rounded-xl border border-secondary-200 p-4 lg:p-6 shadow-soft">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div>
+          <h2 className="text-xl lg:text-2xl font-bold text-secondary-800">Lead Pipeline</h2>
+          <p className="text-sm text-secondary-600 mt-1">Drag leads between stages to update their status</p>
+        </div>
         <button
           onClick={onAddLead}
-          className="flex items-center space-x-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-xl transition-colors shadow-soft hover:shadow-medium"
+          className="flex items-center justify-center space-x-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2.5 rounded-xl transition-all duration-200 shadow-soft hover:shadow-medium hover:scale-105 active:scale-95 w-full sm:w-auto"
         >
           <Plus className="w-4 h-4" />
           <span className="text-sm font-medium">Add Lead</span>
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      {/* Pipeline Grid */}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
         {columns.map((column) => (
-          <div key={column.id} className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-700">{column.title}</h3>
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${column.badgeColor}`}>
+          <div key={column.id} className="flex flex-col">
+            {/* Column Header */}
+            <div className="flex items-center justify-between mb-4 px-2">
+              <h3 className="font-semibold text-secondary-700 text-sm lg:text-base truncate">
+                {column.title}
+              </h3>
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${column.badgeColor} flex-shrink-0`}>
                 {leads[column.id as keyof typeof leads].length}
               </span>
             </div>
 
+            {/* Drop Zone */}
             <div
-              className={`min-h-96 ${column.bgColor} ${column.borderColor} border-2 border-dashed rounded-xl p-4 transition-colors`}
+              className={`flex-1 min-h-[400px] lg:min-h-[500px] ${column.bgColor} ${column.borderColor} border-2 border-dashed rounded-xl p-3 lg:p-4 transition-all duration-200 hover:border-opacity-60`}
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, column.id)}
             >
@@ -176,53 +235,94 @@ const LeadPipeline: React.FC<LeadPipelineProps> = ({ onAddLead }) => {
                     key={lead.id}
                     draggable
                     onDragStart={(e) => handleDragStart(e, lead.id)}
-                    className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 cursor-move hover:shadow-md transition-all duration-200 hover:scale-102"
+                    className="bg-white p-3 lg:p-4 rounded-xl shadow-sm border border-secondary-100 cursor-move hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] group"
                   >
+                    {/* Lead Header */}
                     <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center space-x-2">
-                        <div className="w-8 h-8 bg-gradient-to-r from-gray-400 to-gray-600 rounded-full flex items-center justify-center">
+                      <div className="flex items-start space-x-2 min-w-0 flex-1">
+                        <div className="w-8 h-8 bg-gradient-to-r from-primary-400 to-primary-600 rounded-full flex items-center justify-center flex-shrink-0">
                           <User className="w-4 h-4 text-white" />
                         </div>
-                        <div>
-                          <h4 className="font-semibold text-secondary-800 text-sm">
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-semibold text-secondary-800 text-sm leading-tight truncate">
                             {lead.first_name} {lead.last_name}
                           </h4>
-                          <p className="text-xs text-secondary-600">
-                            {lead.subjects_interested?.join(', ') || 'No subjects specified'}
+                          <p className="text-xs text-secondary-600 mt-1 line-clamp-2">
+                            {lead.subjects_interested?.length > 0
+                              ? lead.subjects_interested.join(', ')
+                              : 'No subjects specified'}
                           </p>
                         </div>
                       </div>
-                      <div className="w-3 h-3 rounded-full bg-primary-500" />
+                      <div className="w-3 h-3 rounded-full bg-primary-500 flex-shrink-0 ml-2" />
                     </div>
 
-                    <div className="space-y-2">
+                    {/* Contact Info */}
+                    <div className="space-y-2 mb-3">
                       <div className="flex items-center space-x-2 text-xs text-secondary-600">
-                        <Phone className="w-3 h-3" />
-                        <span>{lead.phone}</span>
+                        <Phone className="w-3 h-3 flex-shrink-0" />
+                        <span className="truncate">{lead.phone}</span>
                       </div>
                       {lead.email && (
                         <div className="flex items-center space-x-2 text-xs text-secondary-600">
-                          <Mail className="w-3 h-3" />
-                          <span>{lead.email}</span>
+                          <Mail className="w-3 h-3 flex-shrink-0" />
+                          <span className="truncate">{lead.email}</span>
                         </div>
                       )}
                     </div>
 
-                    <div className="flex justify-between items-center mt-3 pt-3 border-t border-secondary-100">
-                      <button className="text-xs text-primary-600 hover:text-primary-700 font-medium">
+                    {/* Action Buttons */}
+                    <div className="flex justify-between items-center pt-3 border-t border-secondary-100">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleContactClick(lead);
+                        }}
+                        className="text-xs text-primary-600 hover:text-primary-700 font-medium transition-colors hover:underline"
+                      >
                         Contact
                       </button>
-                      <button className="text-xs text-secondary-500 hover:text-secondary-700">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDetailsClick(lead);
+                        }}
+                        className="text-xs text-secondary-500 hover:text-secondary-700 transition-colors hover:underline"
+                      >
                         Details
                       </button>
                     </div>
                   </div>
                 ))}
+
+                {/* Empty State for Column */}
+                {leads[column.id as keyof typeof leads].length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <div className="w-12 h-12 rounded-full bg-secondary-100 flex items-center justify-center mb-3">
+                      <User className="w-6 h-6 text-secondary-400" />
+                    </div>
+                    <p className="text-sm text-secondary-500 font-medium">No leads yet</p>
+                    <p className="text-xs text-secondary-400 mt-1">Drag leads here or add new ones</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         ))}
       </div>
+
+      {/* Modals */}
+      <LeadDetailsModal
+        isOpen={showDetailsModal}
+        onClose={closeModals}
+        lead={selectedLead}
+      />
+
+      <LeadContactModal
+        isOpen={showContactModal}
+        onClose={closeModals}
+        lead={selectedLead}
+      />
     </div>
   );
 };

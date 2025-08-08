@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import type { Student, Parent, Lead, Class, Teacher, Attendance, Fee, Performance, Communication, Worksheet } from '../lib/supabase'
+import type { Student, Parent, Lead, Class, Teacher, Staff, Attendance, Fee, Performance, Communication, Worksheet, SalaryRecord, StaffSession, RolePermission } from '../lib/supabase'
 
 export class DataService {
   // Students
@@ -336,8 +336,279 @@ export class DataService {
       .insert(communication)
       .select()
       .single()
-    
+
     if (error) throw error
     return data
+  }
+
+  // Staff Management
+  static async getStaff(filters?: { role?: string; status?: string }) {
+    let query = supabase
+      .from('staff')
+      .select('*')
+
+    if (filters?.role) query = query.eq('role', filters.role)
+    if (filters?.status) query = query.eq('status', filters.status)
+
+    const { data, error } = await query.order('created_at', { ascending: false })
+
+    if (error) throw error
+    return data
+  }
+
+  static async getStaffById(id: string) {
+    const { data, error } = await supabase
+      .from('staff')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (error) throw error
+    return data
+  }
+
+  static async getStaffByEmail(email: string) {
+    const { data, error } = await supabase
+      .from('staff')
+      .select('*')
+      .eq('email', email)
+      .single()
+
+    if (error) throw error
+    return data
+  }
+
+  static async createStaff(staff: Omit<Staff, 'id' | 'created_at' | 'updated_at'>) {
+    const { data, error } = await supabase
+      .from('staff')
+      .insert(staff)
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  }
+
+  static async updateStaff(id: string, updates: Partial<Staff>) {
+    const { data, error } = await supabase
+      .from('staff')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  }
+
+  static async deleteStaff(id: string) {
+    const { error } = await supabase
+      .from('staff')
+      .delete()
+      .eq('id', id)
+
+    if (error) throw error
+  }
+
+  // Role Permissions
+  static async getRolePermissions(role?: string) {
+    let query = supabase
+      .from('role_permissions')
+      .select('*')
+
+    if (role) query = query.eq('role', role)
+
+    const { data, error } = await query.order('role', { ascending: true })
+
+    if (error) throw error
+    return data
+  }
+
+  static async createRolePermission(rolePermission: Omit<RolePermission, 'id' | 'created_at'>) {
+    const { data, error } = await supabase
+      .from('role_permissions')
+      .insert(rolePermission)
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  }
+
+  static async deleteRolePermission(role: string, permission: string) {
+    const { error } = await supabase
+      .from('role_permissions')
+      .delete()
+      .eq('role', role)
+      .eq('permission', permission)
+
+    if (error) throw error
+  }
+
+  // Salary Records
+  static async getSalaryRecords(filters?: { staff_id?: string; month_year?: string; status?: string }) {
+    let query = supabase
+      .from('salary_records')
+      .select(`
+        *,
+        staff:staff(*)
+      `)
+
+    if (filters?.staff_id) query = query.eq('staff_id', filters.staff_id)
+    if (filters?.month_year) query = query.eq('month_year', filters.month_year)
+    if (filters?.status) query = query.eq('status', filters.status)
+
+    const { data, error } = await query.order('payment_date', { ascending: false })
+
+    if (error) throw error
+    return data
+  }
+
+  static async createSalaryRecord(salaryRecord: Omit<SalaryRecord, 'id' | 'created_at' | 'updated_at'>) {
+    const { data, error } = await supabase
+      .from('salary_records')
+      .insert(salaryRecord)
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  }
+
+  static async updateSalaryRecord(id: string, updates: Partial<SalaryRecord>) {
+    const { data, error } = await supabase
+      .from('salary_records')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  }
+
+  static async deleteSalaryRecord(id: string) {
+    const { error } = await supabase
+      .from('salary_records')
+      .delete()
+      .eq('id', id)
+
+    if (error) throw error
+  }
+
+  // Staff Sessions
+  static async createStaffSession(session: Omit<StaffSession, 'id' | 'created_at'>) {
+    const { data, error } = await supabase
+      .from('staff_sessions')
+      .insert(session)
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  }
+
+  static async updateStaffSession(id: string, updates: Partial<StaffSession>) {
+    const { data, error } = await supabase
+      .from('staff_sessions')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  }
+
+  static async getStaffSessions(staffId: string, limit?: number) {
+    let query = supabase
+      .from('staff_sessions')
+      .select('*')
+      .eq('staff_id', staffId)
+      .order('login_time', { ascending: false })
+
+    if (limit) query = query.limit(limit)
+
+    const { data, error } = await query
+
+    if (error) throw error
+    return data
+  }
+
+  // Financial Reports for Accountants
+  static async getFinancialSummary(dateRange?: { start: string; end: string }) {
+    let feeQuery = supabase
+      .from('fees')
+      .select('amount, status, paid_date, created_at')
+
+    let salaryQuery = supabase
+      .from('salary_records')
+      .select('amount, payment_date, status')
+
+    if (dateRange) {
+      feeQuery = feeQuery
+        .gte('created_at', dateRange.start)
+        .lte('created_at', dateRange.end)
+
+      salaryQuery = salaryQuery
+        .gte('payment_date', dateRange.start)
+        .lte('payment_date', dateRange.end)
+    }
+
+    const [feeResult, salaryResult] = await Promise.all([
+      feeQuery,
+      salaryQuery
+    ])
+
+    if (feeResult.error) throw feeResult.error
+    if (salaryResult.error) throw salaryResult.error
+
+    return {
+      fees: feeResult.data,
+      salaries: salaryResult.data
+    }
+  }
+
+  // Student Reports for Teachers
+  static async getStudentReport(studentId: string) {
+    const [student, attendance, performance, fees] = await Promise.all([
+      this.getStudentById(studentId),
+      this.getAttendance({ student_id: studentId }),
+      this.getPerformance({ student_id: studentId }),
+      this.getFees({ student_id: studentId })
+    ])
+
+    return {
+      student,
+      attendance,
+      performance,
+      fees
+    }
+  }
+
+  // Money Flow Report for Accountants
+  static async getMoneyFlowReport(dateRange?: { start: string; end: string }) {
+    const financialData = await this.getFinancialSummary(dateRange)
+
+    const income = financialData.fees
+      .filter(f => f.status === 'paid')
+      .reduce((sum, f) => sum + f.amount, 0)
+
+    const expenses = financialData.salaries
+      .filter(s => s.status === 'paid')
+      .reduce((sum, s) => sum + s.amount, 0)
+
+    const pending = financialData.fees
+      .filter(f => f.status === 'pending')
+      .reduce((sum, f) => sum + f.amount, 0)
+
+    return {
+      income,
+      expenses,
+      pending,
+      netFlow: income - expenses,
+      feeDetails: financialData.fees,
+      salaryDetails: financialData.salaries
+    }
   }
 }

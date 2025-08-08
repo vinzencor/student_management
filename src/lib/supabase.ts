@@ -71,19 +71,56 @@ export interface Class {
   updated_at: string
 }
 
-export interface Teacher {
+export interface Staff {
   id: string
   first_name: string
   last_name: string
   email: string
   phone: string
-  subjects: string[]
-  qualification: string
+  role: 'teacher' | 'office_staff' | 'accountant' | 'super_admin'
+  subjects?: string[]
+  qualification?: string
   experience_years: number
-  salary: number
-  status: 'active' | 'inactive'
+  salary?: number
+  hire_date: string
+  status: 'active' | 'inactive' | 'terminated'
   created_at: string
   updated_at: string
+}
+
+export interface RolePermission {
+  id: string
+  role: string
+  permission: string
+  created_at: string
+}
+
+export interface SalaryRecord {
+  id: string
+  staff_id: string
+  amount: number
+  payment_date: string
+  payment_method?: 'cash' | 'bank_transfer' | 'cheque'
+  month_year: string
+  status: 'paid' | 'pending' | 'cancelled'
+  notes?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface StaffSession {
+  id: string
+  staff_id: string
+  login_time: string
+  logout_time?: string
+  ip_address?: string
+  user_agent?: string
+  created_at: string
+}
+
+// Keep Teacher interface for backward compatibility
+export interface Teacher extends Staff {
+  role: 'teacher'
 }
 
 export interface Attendance {

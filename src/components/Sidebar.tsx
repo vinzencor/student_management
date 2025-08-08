@@ -1,14 +1,17 @@
 import React from 'react';
-import { 
-  Home, 
-  Users, 
-  Calendar, 
-  DollarSign, 
-  BarChart3, 
+import {
+  Home,
+  Users,
+  Calendar,
+  DollarSign,
+  BarChart3,
   Settings,
   GraduationCap,
-  X
+  X,
+  UserCog
 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { canAccessNavItem } from '../utils/roleUtils';
 
 interface SidebarProps {
   activeView: string;
@@ -18,8 +21,11 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, sidebarOpen, setSidebarOpen }) => {
-  const menuItems = [
+  const { user } = useAuth();
+
+  const allMenuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home, badge: null },
+    { id: 'staff', label: 'Staff Management', icon: UserCog, badge: null },
     { id: 'leads', label: 'Lead Management', icon: Users, badge: null },
     { id: 'students', label: 'Students', icon: GraduationCap, badge: null },
     { id: 'schedule', label: 'Class Schedule', icon: Calendar, badge: null },
@@ -27,6 +33,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, sidebarOpe
     { id: 'reports', label: 'Reports & Analytics', icon: BarChart3, badge: null },
     { id: 'settings', label: 'Settings', icon: Settings, badge: null },
   ];
+
+  // Filter menu items based on user role
+  const menuItems = allMenuItems.filter(item => canAccessNavItem(user, item.id));
 
   const handleMenuClick = (viewId: string) => {
     setActiveView(viewId);

@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import Dashboard from './components/Dashboard';
+import StaffManagement from './components/StaffManagement';
 import LeadManagement from './components/LeadManagement';
 import StudentProfile from './components/StudentProfile';
 import ClassSchedule from './components/ClassSchedule';
@@ -31,6 +32,7 @@ function App() {
             <main className="flex-1 px-4 lg:px-6 pb-4 lg:pb-6">
               <div className="animate-fade-in">
                 {activeView === 'dashboard' && <Dashboard setActiveView={setActiveView} />}
+                {activeView === 'staff' && <StaffManagement />}
                 {activeView === 'leads' && <LeadManagement />}
                 {activeView === 'students' && <StudentProfile />}
                 {activeView === 'schedule' && <ClassSchedule />}

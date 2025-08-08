@@ -24,7 +24,7 @@ const WelcomeHeader: React.FC = () => {
   const randomMotivation = motivationalLines[Math.floor(Math.random() * motivationalLines.length)];
 
   return (
-    <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 rounded-2xl p-8 text-white relative overflow-hidden">
+    <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 rounded-2xl p-8 text-white relative overflow-hidden pt-4">
       {/* Background decorative elements */}
       <div className="absolute top-4 right-4 opacity-20">
         <Sun className="w-16 h-16" />
@@ -37,7 +37,7 @@ const WelcomeHeader: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold mb-2 animate-slideInLeft">
-              {greeting}, Sarah! 👋
+              {greeting} 👋
             </h1>
             <p className="text-blue-100 text-lg mb-4 animate-slideInLeft animation-delay-200">
               {dateString}
@@ -47,7 +47,7 @@ const WelcomeHeader: React.FC = () => {
             </p>
           </div>
           
-          <div className="mt-6 md:mt-0 md:text-right">
+          {/* <div className="mt-6 md:mt-0 md:text-right">
             <div className="bg-white bg-opacity-10 backdrop-blur-sm rounded-xl p-4 animate-slideInRight">
               <p className="text-sm text-blue-100 mb-1">Weather</p>
               <div className="flex items-center space-x-2">
@@ -56,7 +56,7 @@ const WelcomeHeader: React.FC = () => {
               </div>
               <p className="text-xs text-blue-100 mt-1">Perfect day for learning!</p>
             </div>
-          </div>
+          </div> */}
         </div>
       </div>
     </div>

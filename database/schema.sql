@@ -34,20 +34,56 @@ CREATE TABLE IF NOT EXISTS students (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Create Teachers table
-CREATE TABLE IF NOT EXISTS teachers (
+-- Create Staff table (replaces Teachers table with role-based system)
+CREATE TABLE IF NOT EXISTS staff (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   first_name VARCHAR(100) NOT NULL,
   last_name VARCHAR(100) NOT NULL,
   email VARCHAR(255) UNIQUE NOT NULL,
   phone VARCHAR(20) NOT NULL,
-  subjects TEXT[] NOT NULL DEFAULT '{}',
+  role VARCHAR(20) NOT NULL CHECK (role IN ('teacher', 'office_staff', 'accountant', 'super_admin')),
+  subjects TEXT[] DEFAULT '{}', -- Only for teachers
   qualification VARCHAR(200),
   experience_years INTEGER DEFAULT 0,
   salary DECIMAL(10,2),
-  status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+  hire_date DATE DEFAULT CURRENT_DATE,
+  status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'terminated')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create Role Permissions table
+CREATE TABLE IF NOT EXISTS role_permissions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  role VARCHAR(20) NOT NULL,
+  permission VARCHAR(50) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(role, permission)
+);
+
+-- Create Salary Records table for tracking salary payments
+CREATE TABLE IF NOT EXISTS salary_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  staff_id UUID NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+  amount DECIMAL(10,2) NOT NULL,
+  payment_date DATE NOT NULL,
+  payment_method VARCHAR(20) CHECK (payment_method IN ('cash', 'bank_transfer', 'cheque')),
+  month_year VARCHAR(7) NOT NULL, -- Format: YYYY-MM
+  status VARCHAR(20) DEFAULT 'paid' CHECK (status IN ('paid', 'pending', 'cancelled')),
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create Staff Sessions table for tracking login sessions
+CREATE TABLE IF NOT EXISTS staff_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  staff_id UUID NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+  login_time TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  logout_time TIMESTAMP WITH TIME ZONE,
+  ip_address INET,
+  user_agent TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Create Classes table
@@ -179,10 +215,58 @@ CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
 CREATE INDEX IF NOT EXISTS idx_performance_student_id ON performance(student_id);
 CREATE INDEX IF NOT EXISTS idx_communications_recipient ON communications(recipient_type, recipient_id);
 
+-- Staff table indexes
+CREATE INDEX IF NOT EXISTS idx_staff_email ON staff(email);
+CREATE INDEX IF NOT EXISTS idx_staff_role ON staff(role);
+CREATE INDEX IF NOT EXISTS idx_staff_status ON staff(status);
+CREATE INDEX IF NOT EXISTS idx_salary_records_staff_id ON salary_records(staff_id);
+CREATE INDEX IF NOT EXISTS idx_salary_records_month_year ON salary_records(month_year);
+CREATE INDEX IF NOT EXISTS idx_staff_sessions_staff_id ON staff_sessions(staff_id);
+
+-- Insert default role permissions
+INSERT INTO role_permissions (role, permission) VALUES
+-- Super Admin permissions (full access)
+('super_admin', 'view_dashboard'),
+('super_admin', 'manage_staff'),
+('super_admin', 'manage_students'),
+('super_admin', 'manage_leads'),
+('super_admin', 'manage_classes'),
+('super_admin', 'manage_fees'),
+('super_admin', 'view_reports'),
+('super_admin', 'export_data'),
+('super_admin', 'manage_settings'),
+('super_admin', 'view_all_reports'),
+('super_admin', 'manage_salaries'),
+
+-- Teacher permissions
+('teacher', 'view_dashboard'),
+('teacher', 'view_students'),
+('teacher', 'view_student_details'),
+('teacher', 'view_student_fees'),
+('teacher', 'view_student_reports'),
+('teacher', 'mark_attendance'),
+('teacher', 'add_performance'),
+('teacher', 'view_classes'),
+
+-- Office Staff permissions
+('office_staff', 'view_dashboard'),
+('office_staff', 'manage_students'),
+('office_staff', 'manage_leads'),
+('office_staff', 'view_reports'),
+('office_staff', 'manage_communications'),
+
+-- Accountant permissions
+('accountant', 'view_dashboard'),
+('accountant', 'manage_fees'),
+('accountant', 'view_financial_reports'),
+('accountant', 'manage_salaries'),
+('accountant', 'view_money_flow'),
+('accountant', 'export_financial_data');
+
 -- Enable Row Level Security
 ALTER TABLE parents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE students ENABLE ROW LEVEL SECURITY;
-ALTER TABLE teachers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE staff ENABLE ROW LEVEL SECURITY;
 ALTER TABLE classes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE leads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE attendance ENABLE ROW LEVEL SECURITY;
@@ -191,6 +275,9 @@ ALTER TABLE performance ENABLE ROW LEVEL SECURITY;
 ALTER TABLE communications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE worksheets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE student_classes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE role_permissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE salary_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE staff_sessions ENABLE ROW LEVEL SECURITY;
 
 -- Create RLS policies (basic - you may want to customize these)
 CREATE POLICY "Enable read access for all users" ON parents FOR SELECT USING (true);
@@ -201,9 +288,17 @@ CREATE POLICY "Enable read access for all users" ON students FOR SELECT USING (t
 CREATE POLICY "Enable insert for authenticated users only" ON students FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for authenticated users only" ON students FOR UPDATE USING (true);
 
-CREATE POLICY "Enable read access for all users" ON teachers FOR SELECT USING (true);
-CREATE POLICY "Enable insert for authenticated users only" ON teachers FOR INSERT WITH CHECK (true);
-CREATE POLICY "Enable update for authenticated users only" ON teachers FOR UPDATE USING (true);
+CREATE POLICY "Enable read access for all users" ON staff FOR SELECT USING (true);
+CREATE POLICY "Enable insert for authenticated users only" ON staff FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable update for authenticated users only" ON staff FOR UPDATE USING (true);
+
+CREATE POLICY "Enable read access for all users" ON role_permissions FOR SELECT USING (true);
+CREATE POLICY "Enable read access for all users" ON salary_records FOR SELECT USING (true);
+CREATE POLICY "Enable insert for authenticated users only" ON salary_records FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable update for authenticated users only" ON salary_records FOR UPDATE USING (true);
+
+CREATE POLICY "Enable read access for all users" ON staff_sessions FOR SELECT USING (true);
+CREATE POLICY "Enable insert for authenticated users only" ON staff_sessions FOR INSERT WITH CHECK (true);
 
 CREATE POLICY "Enable read access for all users" ON classes FOR SELECT USING (true);
 CREATE POLICY "Enable insert for authenticated users only" ON classes FOR INSERT WITH CHECK (true);
