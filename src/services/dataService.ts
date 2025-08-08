@@ -63,7 +63,27 @@ export class DataService {
       .from('parents')
       .select('*')
       .order('created_at', { ascending: false })
-    
+
+    if (error) throw error
+    return data
+  }
+
+  static async getParentById(id: string) {
+    const { data, error } = await supabase
+      .from('parents')
+      .select('*')
+      .eq('id', id)
+      .single()
+    if (error) throw error
+    return data
+  }
+
+  static async findParentByEmail(email: string) {
+    const { data, error } = await supabase
+      .from('parents')
+      .select('*')
+      .eq('email', email)
+      .maybeSingle()
     if (error) throw error
     return data
   }
@@ -74,7 +94,18 @@ export class DataService {
       .insert(parent)
       .select()
       .single()
-    
+
+    if (error) throw error
+    return data
+  }
+
+  static async updateParent(id: string, updates: Partial<Parent>) {
+    const { data, error } = await supabase
+      .from('parents')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single()
     if (error) throw error
     return data
   }
@@ -85,7 +116,17 @@ export class DataService {
       .from('leads')
       .select('*')
       .order('created_at', { ascending: false })
-    
+
+    if (error) throw error
+    return data
+  }
+
+  static async getLeadById(id: string) {
+    const { data, error } = await supabase
+      .from('leads')
+      .select('*')
+      .eq('id', id)
+      .single()
     if (error) throw error
     return data
   }
@@ -231,6 +272,50 @@ export class DataService {
     
     if (error) throw error
     return data
+  }
+
+  // Class Management
+  static async enrollStudentInClass(studentId: string, classId: string): Promise<any> {
+    // First check if enrollment already exists
+    const { data: existing } = await supabase
+      .from('class_enrollments')
+      .select('id')
+      .eq('student_id', studentId)
+      .eq('class_id', classId)
+      .single();
+
+    if (existing) {
+      throw new Error('Student is already enrolled in this class');
+    }
+
+    const { data, error } = await supabase
+      .from('class_enrollments')
+      .insert({
+        student_id: studentId,
+        class_id: classId,
+        enrollment_date: new Date().toISOString(),
+        status: 'active'
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  static async getClassEnrollments(classId: string): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('class_enrollments')
+      .select(`
+        *,
+        student:students(id, first_name, last_name, email, grade_level)
+      `)
+      .eq('class_id', classId)
+      .eq('status', 'active')
+      .order('enrollment_date', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
   }
 
   // Performance

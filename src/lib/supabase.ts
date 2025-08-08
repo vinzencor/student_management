@@ -63,9 +63,14 @@ export interface Class {
     start_time: string
     end_time: string
   }[]
+  day_of_week?: string
+  start_time?: string
+  end_time?: string
+  room?: string
   max_students: number
   current_students: number
   fee_per_month: number
+  description?: string
   status: 'active' | 'inactive'
   created_at: string
   updated_at: string
@@ -138,14 +143,19 @@ export interface Fee {
   student_id: string
   class_id?: string
   amount: number
+  paid_amount?: number
+  remaining_amount?: number
   due_date: string
   paid_date?: string
   status: 'pending' | 'paid' | 'overdue' | 'partial'
   payment_method?: 'cash' | 'card' | 'bank_transfer' | 'upi'
   receipt_number?: string
+  fee_type: 'tuition' | 'registration' | 'exam' | 'library' | 'lab' | 'transport' | 'other'
+  description?: string
   notes?: string
   created_at: string
   updated_at: string
+  student?: any
 }
 
 export interface Performance {
@@ -185,4 +195,65 @@ export interface Worksheet {
   uploaded_by: string
   shared_with: string[]
   created_at: string
+}
+
+// Receipts for converted leads/enrollments
+export interface Receipt {
+  id: string
+  lead_id: string
+  student_id?: string
+  parent_id?: string
+  amount: number
+  tax_rate?: number // e.g., 0.18 for 18%
+  tax_amount?: number
+  total_amount: number
+  currency?: string
+  notes?: string
+  status: 'draft' | 'ready' | 'printed'
+  created_at: string
+  updated_at: string
+}
+
+// Accounting auxiliary
+export interface Liability {
+  id: string
+  title: string
+  amount: number
+  due_date?: string
+  status: 'open' | 'closed'
+  notes?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface FeeStructure {
+  id: string
+  name: string
+  base_amount: number
+  default_tax_rate?: number
+  notes?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface FundTransaction {
+  id: string
+  type: 'income' | 'outgoing'
+  amount: number
+  date: string
+  category?: string
+  description?: string
+  created_at: string
+}
+
+export interface Plan {
+  id: string
+  name: string
+  description?: string
+  status: 'planned' | 'active' | 'completed' | 'cancelled'
+  start_date?: string
+  end_date?: string
+  budget?: number
+  created_at: string
+  updated_at: string
 }

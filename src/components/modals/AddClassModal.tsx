@@ -11,13 +11,16 @@ interface AddClassModalProps {
 
 const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, onClassAdded }) => {
   const [formData, setFormData] = useState({
+    name: '',
     subject: '',
+    grade_level: '',
     teacher_id: '',
     room: '',
     start_time: '',
     end_time: '',
     day_of_week: '',
     max_students: 30,
+    fee_per_month: 0,
     description: ''
   });
 
@@ -100,13 +103,16 @@ const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, onClassA
       
       // Reset form
       setFormData({
+        name: '',
         subject: '',
+        grade_level: '',
         teacher_id: '',
         room: '',
         start_time: '',
         end_time: '',
         day_of_week: '',
         max_students: 30,
+        fee_per_month: 0,
         description: ''
       });
       setSelectedStudents([]);
@@ -156,6 +162,21 @@ const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, onClassA
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-secondary-700 mb-2">
+                    Class Name *
+                  </label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-secondary-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                    placeholder="e.g., Advanced Mathematics 10th"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-secondary-700 mb-2">
                     Subject *
                   </label>
                   <select
@@ -170,6 +191,37 @@ const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, onClassA
                       <option key={subject} value={subject}>{subject}</option>
                     ))}
                   </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-secondary-700 mb-2">
+                    Grade Level *
+                  </label>
+                  <input
+                    type="text"
+                    name="grade_level"
+                    value={formData.grade_level}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-secondary-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                    placeholder="e.g., 10th, 11th, 12th"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-secondary-700 mb-2">
+                    Fee Per Month (₹) *
+                  </label>
+                  <input
+                    type="number"
+                    name="fee_per_month"
+                    value={formData.fee_per_month}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-secondary-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                    placeholder="3000"
+                    min="0"
+                    required
+                  />
                 </div>
 
                 <div>

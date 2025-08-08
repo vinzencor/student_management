@@ -28,8 +28,13 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, sidebarOpe
     { id: 'staff', label: 'Staff Management', icon: UserCog, badge: null },
     { id: 'leads', label: 'Lead Management', icon: Users, badge: null },
     { id: 'students', label: 'Students', icon: GraduationCap, badge: null },
+    { id: 'batches', label: 'Students by Batch', icon: Calendar, badge: null },
+    { id: 'courses', label: 'Course Management', icon: GraduationCap, badge: null },
     { id: 'schedule', label: 'Class Schedule', icon: Calendar, badge: null },
+    { id: 'attendance', label: 'Attendance', icon: Calendar, badge: null },
     { id: 'fees', label: 'Fee Management', icon: DollarSign, badge: null },
+    { id: 'accounts', label: 'Accounts', icon: DollarSign, badge: null },
+    { id: 'receipts', label: 'Receipts', icon: BarChart3, badge: null },
     { id: 'reports', label: 'Reports & Analytics', icon: BarChart3, badge: null },
     { id: 'settings', label: 'Settings', icon: Settings, badge: null },
   ];

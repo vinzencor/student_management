@@ -2,31 +2,89 @@ import React, { useState, useEffect } from 'react';
 import { DollarSign, CheckCircle, AlertTriangle, Clock, Plus, Search, Filter, Mail, Send } from 'lucide-react';
 import { DataService } from '../services/dataService';
 import { EmailService } from '../services/emailService';
+import { supabase } from '../lib/supabase';
 import type { Fee } from '../lib/supabase';
 import AddFeeModal from './modals/AddFeeModal';
 
 const FeeManagement: React.FC = () => {
   const [fees, setFees] = useState<Fee[]>([]);
+  const [students, setStudents] = useState<any[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [courseFilter, setCourseFilter] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [sendingReminders, setSendingReminders] = useState(false);
   const [selectedFees, setSelectedFees] = useState<string[]>([]);
+  const [payingFee, setPayingFee] = useState<any | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState<number>(0);
 
   useEffect(() => {
-    fetchFees();
+    loadAllData();
   }, []);
 
-  const fetchFees = async () => {
+  const loadAllData = async () => {
     try {
       setLoading(true);
-      const data = await DataService.getFees();
-      setFees(data || []);
+
+      // Load courses first
+      const { data: coursesData } = await supabase
+        .from('courses')
+        .select('*')
+        .eq('status', 'active')
+        .order('name');
+      setCourses(coursesData || []);
+
+      // Load all students with their course info
+      const { data: studentsData } = await supabase
+        .from('students')
+        .select(`
+          *,
+          course:courses(id, name, price),
+          parent:parents(first_name, last_name, phone)
+        `)
+        .eq('status', 'active')
+        .order('first_name');
+      setStudents(studentsData || []);
+
+      // Load comprehensive fee data from multiple sources
+      await loadComprehensiveFees(studentsData || []);
+
     } catch (error) {
-      console.error('Error fetching fees:', error);
+      console.error('Error loading data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadComprehensiveFees = async (studentsData: any[]) => {
+    try {
+      // Simply load fee records from the database (they should be synced by triggers)
+      const { data: feeRecords, error } = await supabase
+        .from('fees')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error loading fees:', error);
+        return;
+      }
+
+      // Map fee records to include student and course info
+      const allFees = (feeRecords || []).map(fee => {
+        const student = studentsData.find(s => s.id === fee.student_id);
+        return {
+          ...fee,
+          remaining_amount: Math.max(0, (fee.amount || 0) - (fee.paid_amount || 0)),
+          student: student,
+          course: student?.course
+        };
+      }).filter(fee => fee.student); // Only include fees with valid students
+
+      setFees(allFees);
+    } catch (error) {
+      console.error('Error loading comprehensive fees:', error);
     }
   };
 
@@ -34,11 +92,14 @@ const FeeManagement: React.FC = () => {
     const matchesSearch =
       fee.student?.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       fee.student?.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      fee.fee_type.toLowerCase().includes(searchTerm.toLowerCase());
+      fee.fee_type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      fee.course?.name?.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus = statusFilter === 'all' || fee.status === statusFilter;
 
-    return matchesSearch && matchesStatus;
+    const matchesCourse = courseFilter === 'all' || fee.student?.course_id === courseFilter;
+
+    return matchesSearch && matchesStatus && matchesCourse;
   });
 
   const getStatusIcon = (status: string) => {
@@ -103,6 +164,43 @@ const FeeManagement: React.FC = () => {
     );
   };
 
+  const openPaymentModal = (fee: any) => {
+    setPayingFee(fee);
+    const remaining = fee.amount - (fee.paid_amount || 0);
+    setPaymentAmount(remaining);
+  };
+
+  const processPayment = async () => {
+    if (!payingFee || paymentAmount <= 0) return;
+
+    try {
+      setLoading(true);
+      const newPaidAmount = (payingFee.paid_amount || 0) + paymentAmount;
+      const newStatus = newPaidAmount >= payingFee.amount ? 'paid' : 'partial';
+
+      const { error } = await supabase
+        .from('fees')
+        .update({
+          paid_amount: newPaidAmount,
+          status: newStatus,
+          paid_date: newStatus === 'paid' ? new Date().toISOString() : null
+        })
+        .eq('id', payingFee.id);
+
+      if (error) throw error;
+
+      setPayingFee(null);
+      setPaymentAmount(0);
+      await loadAllData(); // Reload all data to reflect changes
+      alert(`Payment of ₹${paymentAmount.toLocaleString()} recorded successfully!`);
+    } catch (error) {
+      console.error('Error processing payment:', error);
+      alert('Failed to process payment');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -155,30 +253,48 @@ const FeeManagement: React.FC = () => {
 
       {/* Search and Filters */}
       <div className="bg-white rounded-xl border border-secondary-200 p-4 shadow-soft">
-        <div className="flex flex-col md:flex-row gap-4">
+        <div className="flex flex-col lg:flex-row gap-4">
           <div className="flex-1 relative">
             <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-secondary-400" />
             <input
               type="text"
-              placeholder="Search by student name or fee type..."
+              placeholder="Search by student name, course, or fee type..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 border border-secondary-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
             />
           </div>
 
-          <div className="flex items-center space-x-2">
-            <Filter className="w-5 h-5 text-secondary-500" />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2.5 border border-secondary-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
-            >
-              <option value="all">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="paid">Paid</option>
-              <option value="overdue">Overdue</option>
-            </select>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
+            <div className="flex items-center space-x-2">
+              <Filter className="w-5 h-5 text-secondary-500" />
+              <select
+                value={courseFilter}
+                onChange={(e) => setCourseFilter(e.target.value)}
+                className="px-4 py-2.5 border border-secondary-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors min-w-[180px]"
+              >
+                <option value="all">All Courses</option>
+                {courses.map(course => (
+                  <option key={course.id} value={course.id}>
+                    {course.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-4 py-2.5 border border-secondary-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+              >
+                <option value="all">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="partial">Partial</option>
+                <option value="paid">Paid</option>
+                <option value="overdue">Overdue</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
@@ -259,9 +375,11 @@ const FeeManagement: React.FC = () => {
                   />
                 </th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-secondary-600">Student</th>
+                <th className="text-left px-6 py-4 text-sm font-semibold text-secondary-600">Course</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-secondary-600">Fee Type</th>
-                <th className="text-left px-6 py-4 text-sm font-semibold text-secondary-600">Amount</th>
-                <th className="text-left px-6 py-4 text-sm font-semibold text-secondary-600">Due Date</th>
+                <th className="text-left px-6 py-4 text-sm font-semibold text-secondary-600">Total Amount</th>
+                <th className="text-left px-6 py-4 text-sm font-semibold text-secondary-600">Paid Amount</th>
+                <th className="text-left px-6 py-4 text-sm font-semibold text-secondary-600">Remaining</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-secondary-600">Status</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-secondary-600">Actions</th>
               </tr>
@@ -284,16 +402,37 @@ const FeeManagement: React.FC = () => {
                       <div className="font-medium text-secondary-800">
                         {fee.student?.first_name} {fee.student?.last_name}
                       </div>
-                      <div className="text-sm text-secondary-600">{fee.student?.grade_level}</div>
+                      <div className="text-sm text-secondary-600">
+                        Grade {fee.student?.grade_level} • {fee.student?.phone || 'No phone'}
+                      </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="font-medium text-secondary-800 capitalize">{fee.fee_type}</div>
+                      <div className="font-medium text-secondary-800">
+                        {fee.course?.name || fee.student?.course?.name || '-'}
+                      </div>
+                      <div className="text-sm text-secondary-600">
+                        Course Fee: ₹{(fee.course?.price || fee.student?.course?.price || 0).toLocaleString()}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="font-medium text-secondary-800 capitalize">{fee.fee_type || 'tuition'}</div>
                       {fee.description && (
                         <div className="text-sm text-secondary-600">{fee.description}</div>
                       )}
                     </td>
                     <td className="px-6 py-4">
-                      <div className="font-semibold text-secondary-800">${fee.amount.toFixed(2)}</div>
+                      <div className="font-semibold text-secondary-800">₹{(fee.amount || 0).toLocaleString()}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="font-semibold text-success-600">₹{(fee.paid_amount || 0).toLocaleString()}</div>
+                      {fee.paid_date && (
+                        <div className="text-xs text-success-600">Paid: {new Date(fee.paid_date).toLocaleDateString()}</div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="font-semibold text-danger-600">
+                        ₹{Math.max(0, (fee.amount || 0) - (fee.paid_amount || 0)).toLocaleString()}
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-secondary-600">{new Date(fee.due_date).toLocaleDateString()}</div>
@@ -305,24 +444,24 @@ const FeeManagement: React.FC = () => {
                       <div className="flex items-center space-x-2">
                         {getStatusIcon(fee.status)}
                         <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(fee.status)}`}>
-                          {fee.status.charAt(0).toUpperCase() + fee.status.slice(1)}
+                          {fee.status?.charAt(0).toUpperCase() + fee.status?.slice(1) || 'Pending'}
                         </span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex space-x-2">
-                        {fee.status !== 'paid' && (
+                        {(fee.remaining_amount || 0) > 0 && (
                           <button
-                            onClick={() => handleSendReminder(fee.id)}
-                            className="flex items-center space-x-1 text-warning-600 hover:text-warning-700 text-sm font-medium"
+                            onClick={() => openPaymentModal(fee)}
+                            className="flex items-center space-x-1 bg-success-600 hover:bg-success-700 text-white px-3 py-1 rounded text-sm font-medium"
                           >
-                            <Mail className="w-4 h-4" />
-                            <span>Remind</span>
+                            <DollarSign className="w-4 h-4" />
+                            <span>Pay Fees</span>
                           </button>
                         )}
-                        <button className="text-secondary-600 hover:text-secondary-700 text-sm font-medium">
-                          Details
-                        </button>
+                        {(fee.remaining_amount || 0) === 0 && (
+                          <span className="text-success-600 text-sm font-medium">✓ Fully Paid</span>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -345,8 +484,78 @@ const FeeManagement: React.FC = () => {
       <AddFeeModal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
-        onFeeAdded={fetchFees}
+        onFeeAdded={loadAllData}
       />
+
+      {/* Pay Fees Modal */}
+      {payingFee && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Pay Fees</h3>
+
+            <div className="space-y-4">
+              <div className="bg-secondary-50 p-4 rounded-lg">
+                <div className="font-medium">{payingFee.student?.first_name} {payingFee.student?.last_name}</div>
+                <div className="text-sm text-secondary-600">{payingFee.student?.course?.name}</div>
+                <div className="text-sm text-secondary-600 capitalize">{payingFee.fee_type}</div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-secondary-700 mb-1">Total Fee</label>
+                  <div className="text-lg font-semibold">₹{payingFee.amount.toLocaleString()}</div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-secondary-700 mb-1">Already Paid</label>
+                  <div className="text-lg font-semibold text-success-600">₹{(payingFee.paid_amount || 0).toLocaleString()}</div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-secondary-700 mb-1">Remaining Amount</label>
+                <div className="text-lg font-semibold text-danger-600">₹{(payingFee.amount - (payingFee.paid_amount || 0)).toLocaleString()}</div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-secondary-700 mb-1">Payment Amount (₹) *</label>
+                <input
+                  type="number"
+                  min="1"
+                  max={payingFee.amount - (payingFee.paid_amount || 0)}
+                  className="w-full border border-secondary-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(Number(e.target.value))}
+                  placeholder="Enter payment amount"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-secondary-700 mb-1">After Payment</label>
+                <div className="text-sm">
+                  <div>New Paid Amount: ₹{((payingFee.paid_amount || 0) + paymentAmount).toLocaleString()}</div>
+                  <div>Remaining: ₹{Math.max(0, payingFee.amount - (payingFee.paid_amount || 0) - paymentAmount).toLocaleString()}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-2 mt-6">
+              <button
+                onClick={() => setPayingFee(null)}
+                className="px-4 py-2 border border-secondary-300 text-secondary-700 rounded-lg hover:bg-secondary-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={processPayment}
+                disabled={loading || paymentAmount <= 0}
+                className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 disabled:opacity-50"
+              >
+                {loading ? 'Processing...' : 'Record Payment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

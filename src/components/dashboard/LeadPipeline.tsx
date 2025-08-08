@@ -114,6 +114,25 @@ const LeadPipeline: React.FC<LeadPipelineProps> = ({ onAddLead }) => {
         // Update lead status in database
         await DataService.updateLead(draggedItem, { status: targetColumn as any });
 
+        // When moved to converted, auto-create receipt draft if not exists
+        if (targetColumn === 'converted') {
+          try {
+            const { data: existing } = await (await import('../../lib/supabase')).supabase
+              .from('receipts')
+              .select('id')
+              .eq('lead_id', draggedItem)
+              .limit(1)
+              .maybeSingle();
+            if (!existing) {
+              await (await import('../../lib/supabase')).supabase
+                .from('receipts')
+                .insert({ lead_id: draggedItem, amount: 0, tax_rate: 0, total_amount: 0, status: 'draft' });
+            }
+          } catch (e) {
+            console.warn('Failed to create receipt draft for converted lead', e);
+          }
+        }
+
         // Update local state
         setLeads(prev => ({
           ...prev,

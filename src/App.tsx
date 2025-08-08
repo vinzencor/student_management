@@ -7,9 +7,14 @@ import Dashboard from './components/Dashboard';
 import StaffManagement from './components/StaffManagement';
 import LeadManagement from './components/LeadManagement';
 import StudentProfile from './components/StudentProfile';
+import StudentsByBatch from './components/StudentsByBatch';
+import CourseManagement from './components/CourseManagement';
 import ClassSchedule from './components/ClassSchedule';
 import FeeManagement from './components/FeeManagement';
 import Reports from './components/Reports';
+import AttendanceManagement from './components/AttendanceManagement';
+import Accounts from './components/Accounts';
+import Receipts from './components/Receipts';
 
 function App() {
   const [activeView, setActiveView] = useState('dashboard');
@@ -35,8 +40,13 @@ function App() {
                 {activeView === 'staff' && <StaffManagement />}
                 {activeView === 'leads' && <LeadManagement />}
                 {activeView === 'students' && <StudentProfile />}
+                {activeView === 'batches' && <StudentsByBatch />}
+                {activeView === 'courses' && <CourseManagement />}
                 {activeView === 'schedule' && <ClassSchedule />}
+                {activeView === 'attendance' && <AttendanceManagement />}
                 {activeView === 'fees' && <FeeManagement />}
+                {activeView === 'accounts' && <Accounts />}
+                {activeView === 'receipts' && <Receipts />}
                 {activeView === 'reports' && <Reports />}
                 {activeView === 'settings' && <div className="text-center py-12"><h2 className="text-2xl font-bold text-secondary-600">Settings - Coming Soon</h2></div>}
               </div>

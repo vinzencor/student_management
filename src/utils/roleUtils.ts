@@ -53,10 +53,10 @@ export const DEFAULT_PERMISSIONS: Record<UserRole, string[]> = {
 
 // Navigation items for each role
 export const ROLE_NAVIGATION: Record<UserRole, string[]> = {
-  super_admin: ['dashboard', 'staff', 'students', 'leads', 'schedule', 'fees', 'reports', 'settings'],
-  teacher: ['dashboard', 'students', 'schedule', 'reports'],
-  office_staff: ['dashboard', 'students', 'leads', 'reports'],
-  accountant: ['dashboard', 'fees', 'reports']
+  super_admin: ['dashboard', 'staff', 'students', 'batches', 'leads', 'courses', 'schedule', 'attendance', 'fees', 'accounts', 'receipts', 'reports', 'settings'],
+  teacher: ['dashboard', 'students', 'batches', 'courses', 'schedule', 'attendance', 'reports'],
+  office_staff: ['dashboard', 'students', 'batches', 'leads', 'courses', 'attendance', 'receipts', 'reports'],
+  accountant: ['dashboard', 'fees', 'accounts', 'receipts', 'reports']
 };
 
 // Check if user has a specific permission
