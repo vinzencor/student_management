@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Clock, Calendar, Users, MapPin, BookOpen, AlertCircle, User } from 'lucide-react';
+import { X, Clock, Calendar, Users, MapPin, BookOpen, AlertCircle, User, Search } from 'lucide-react';
 import { DataService } from '../../services/dataService';
 import type { Class, Teacher, Student } from '../../lib/supabase';
 
@@ -29,6 +29,7 @@ const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, onClassA
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [studentSearchTerm, setStudentSearchTerm] = useState('');
 
   const subjects = [
     'Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 
@@ -68,12 +69,23 @@ const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, onClassA
   };
 
   const handleStudentToggle = (studentId: string) => {
-    setSelectedStudents(prev => 
+    setSelectedStudents(prev =>
       prev.includes(studentId)
         ? prev.filter(id => id !== studentId)
         : [...prev, studentId]
     );
   };
+
+  // Filter students based on search term
+  const filteredStudents = students.filter(student => {
+    const searchLower = studentSearchTerm.toLowerCase();
+    return (
+      student.first_name.toLowerCase().includes(searchLower) ||
+      student.last_name.toLowerCase().includes(searchLower) ||
+      student.email.toLowerCase().includes(searchLower) ||
+      (student.grade_level && student.grade_level.toLowerCase().includes(searchLower))
+    );
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -355,11 +367,23 @@ const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, onClassA
                 <Users className="w-5 h-5" />
                 <span>Enroll Students ({selectedStudents.length})</span>
               </h3>
-              
+
+              {/* Student Search */}
+              <div className="relative">
+                <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-secondary-400" />
+                <input
+                  type="text"
+                  placeholder="Search students by name, email, or grade..."
+                  value={studentSearchTerm}
+                  onChange={(e) => setStudentSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-secondary-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                />
+              </div>
+
               <div className="border border-secondary-200 rounded-xl p-4 max-h-96 overflow-y-auto">
-                {students.length > 0 ? (
+                {filteredStudents.length > 0 ? (
                   <div className="space-y-2">
-                    {students.map(student => (
+                    {filteredStudents.map(student => (
                       <label key={student.id} className="flex items-center space-x-3 p-2 hover:bg-secondary-50 rounded-lg cursor-pointer">
                         <input
                           type="checkbox"
@@ -384,10 +408,39 @@ const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, onClassA
                 ) : (
                   <div className="text-center py-8">
                     <Users className="w-8 h-8 text-secondary-400 mx-auto mb-2" />
-                    <p className="text-secondary-500 text-sm">No students available</p>
+                    <p className="text-secondary-500 text-sm">
+                      {studentSearchTerm ? 'No students found matching your search' : 'No students available'}
+                    </p>
+                    {studentSearchTerm && (
+                      <button
+                        onClick={() => setStudentSearchTerm('')}
+                        className="text-primary-600 hover:text-primary-700 text-sm mt-2 underline"
+                      >
+                        Clear search
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
+
+              {/* Selected Students Summary */}
+              {selectedStudents.length > 0 && (
+                <div className="bg-primary-50 border border-primary-200 rounded-xl p-4">
+                  <p className="text-sm text-primary-800 font-medium">
+                    {selectedStudents.length} student{selectedStudents.length !== 1 ? 's' : ''} selected for enrollment
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {selectedStudents.map(studentId => {
+                      const student = students.find(s => s.id === studentId);
+                      return student ? (
+                        <span key={studentId} className="bg-primary-100 text-primary-800 px-2 py-1 rounded-lg text-xs">
+                          {student.first_name} {student.last_name}
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

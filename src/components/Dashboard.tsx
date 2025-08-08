@@ -53,18 +53,20 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView }) => {
       <WelcomeHeader />
       <KPICards />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <LeadPipeline onAddLead={() => setShowAddLeadModal(true)} />
-        </div>
-        <div>
-          <QuickActions onAction={handleQuickAction} />
-        </div>
+      {/* Lead Pipeline - Full Width with Fixed Height */}
+      <div className="w-full">
+        <LeadPipeline onAddLead={() => setShowAddLeadModal(true)} />
       </div>
 
+      {/* Task Automation and Attendance */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <TaskAutomation />
         <AttendanceHeatmap />
+      </div>
+
+      {/* Quick Actions - Moved to Bottom */}
+      <div className="w-full">
+        <QuickActions onAction={handleQuickAction} />
       </div>
 
       {/* Add Lead Modal */}

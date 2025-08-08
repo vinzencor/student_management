@@ -1,14 +1,81 @@
-import React from 'react';
-import { X, User, Mail, Phone, Calendar, MapPin, BookOpen, UserCheck, FileText, Clock } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, User, Mail, Phone, Calendar, MapPin, BookOpen, UserCheck, FileText, Clock, Edit, Trash2, Save } from 'lucide-react';
+import { DataService } from '../../services/dataService';
 
 interface LeadDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   lead: any;
+  onLeadUpdated?: () => void;
 }
 
-const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({ isOpen, onClose, lead }) => {
+const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({ isOpen, onClose, lead, onLeadUpdated }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [editData, setEditData] = useState({
+    first_name: lead?.first_name || '',
+    last_name: lead?.last_name || '',
+    email: lead?.email || '',
+    phone: lead?.phone || '',
+    address: lead?.address || '',
+    subjects_interested: lead?.subjects_interested || [],
+    notes: lead?.notes || '',
+    source: lead?.source || 'walk_in'
+  });
   if (!isOpen || !lead) return null;
+
+  const handleEdit = () => {
+    setEditData({
+      first_name: lead.first_name || '',
+      last_name: lead.last_name || '',
+      email: lead.email || '',
+      phone: lead.phone || '',
+      address: lead.address || '',
+      subjects_interested: lead.subjects_interested || [],
+      notes: lead.notes || '',
+      source: lead.source || 'walk_in'
+    });
+    setIsEditing(true);
+  };
+
+  const handleSave = async () => {
+    try {
+      setLoading(true);
+      await DataService.updateLead(lead.id, editData);
+      setIsEditing(false);
+      onLeadUpdated?.();
+      onClose();
+    } catch (error) {
+      console.error('Error updating lead:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm('Are you sure you want to delete this lead? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await DataService.deleteLead(lead.id);
+      onLeadUpdated?.();
+      onClose();
+    } catch (error) {
+      console.error('Error deleting lead:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setEditData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -16,7 +83,7 @@ const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({ isOpen, onClose, le
       case 'contacted': return 'bg-warning-100 text-warning-800 border-warning-200';
       case 'interested': return 'bg-secondary-100 text-secondary-800 border-secondary-200';
       case 'converted': return 'bg-success-100 text-success-800 border-success-200';
-      case 'lost': return 'bg-danger-100 text-danger-800 border-danger-200';
+      case 'lost': return 'bg-red-100 text-red-800 border-red-200';
       default: return 'bg-secondary-100 text-secondary-800 border-secondary-200';
     }
   };
@@ -49,12 +116,50 @@ const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({ isOpen, onClose, le
               </span>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-secondary-100 rounded-full transition-colors flex-shrink-0"
-          >
-            <X className="w-5 h-5 text-secondary-500" />
-          </button>
+          <div className="flex items-center space-x-2">
+            {isEditing ? (
+              <>
+                <button
+                  onClick={handleSave}
+                  disabled={loading}
+                  className="flex items-center space-x-1 bg-success-600 hover:bg-success-700 text-white px-3 py-2 rounded-xl transition-colors text-sm font-medium disabled:opacity-50"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Save</span>
+                </button>
+                <button
+                  onClick={() => setIsEditing(false)}
+                  className="px-3 py-2 border border-secondary-300 text-secondary-700 rounded-xl hover:bg-secondary-50 transition-colors text-sm font-medium"
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={handleEdit}
+                  className="flex items-center space-x-1 bg-primary-600 hover:bg-primary-700 text-white px-3 py-2 rounded-xl transition-colors text-sm font-medium"
+                >
+                  <Edit className="w-4 h-4" />
+                  <span>Edit</span>
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={loading}
+                  className="flex items-center space-x-1 bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-xl transition-colors text-sm font-medium disabled:opacity-50"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Delete</span>
+                </button>
+              </>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-secondary-100 rounded-full transition-colors flex-shrink-0"
+            >
+              <X className="w-5 h-5 text-secondary-500" />
+            </button>
+          </div>
         </div>
 
         {/* Content - Scrollable */}
@@ -65,24 +170,70 @@ const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({ isOpen, onClose, le
               <Phone className="w-4 h-4 lg:w-5 lg:h-5 mr-2 text-primary-600" />
               Contact Information
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 lg:gap-4">
-              <div className="flex items-center space-x-3">
-                <Phone className="w-4 h-4 text-secondary-500 flex-shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs lg:text-sm text-secondary-600">Phone</p>
-                  <p className="font-medium text-secondary-800 text-sm lg:text-base break-all">{lead.phone}</p>
+
+            {isEditing ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-secondary-700 mb-2">First Name</label>
+                  <input
+                    type="text"
+                    name="first_name"
+                    value={editData.first_name}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-secondary-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-secondary-700 mb-2">Last Name</label>
+                  <input
+                    type="text"
+                    name="last_name"
+                    value={editData.last_name}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-secondary-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-secondary-700 mb-2">Phone</label>
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={editData.phone}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-secondary-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-secondary-700 mb-2">Email</label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={editData.email}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-secondary-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  />
                 </div>
               </div>
-              {lead.email && (
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 lg:gap-4">
                 <div className="flex items-center space-x-3">
-                  <Mail className="w-4 h-4 text-secondary-500 flex-shrink-0" />
+                  <Phone className="w-4 h-4 text-secondary-500 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs lg:text-sm text-secondary-600">Email</p>
-                    <p className="font-medium text-secondary-800 text-sm lg:text-base break-all">{lead.email}</p>
+                    <p className="text-xs lg:text-sm text-secondary-600">Phone</p>
+                    <p className="font-medium text-secondary-800 text-sm lg:text-base break-all">{lead.phone}</p>
                   </div>
                 </div>
-              )}
-            </div>
+                {lead.email && (
+                  <div className="flex items-center space-x-3">
+                    <Mail className="w-4 h-4 text-secondary-500 flex-shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs lg:text-sm text-secondary-600">Email</p>
+                      <p className="font-medium text-secondary-800 text-sm lg:text-base break-all">{lead.email}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Lead Information */}

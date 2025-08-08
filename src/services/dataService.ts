@@ -149,9 +149,18 @@ export class DataService {
       .eq('id', id)
       .select()
       .single()
-    
+
     if (error) throw error
     return data
+  }
+
+  static async deleteLead(id: string) {
+    const { error } = await supabase
+      .from('leads')
+      .delete()
+      .eq('id', id)
+
+    if (error) throw error
   }
 
   // Classes
@@ -174,7 +183,19 @@ export class DataService {
       .insert(classData)
       .select()
       .single()
-    
+
+    if (error) throw error
+    return data
+  }
+
+  static async updateClass(id: string, updates: Partial<Class>) {
+    const { data, error } = await supabase
+      .from('classes')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single()
+
     if (error) throw error
     return data
   }
@@ -313,6 +334,48 @@ export class DataService {
       .eq('class_id', classId)
       .eq('status', 'active')
       .order('enrollment_date', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  }
+
+  static async removeStudentFromClass(enrollmentId: string): Promise<void> {
+    const { error } = await supabase
+      .from('class_enrollments')
+      .delete()
+      .eq('id', enrollmentId);
+
+    if (error) throw error;
+  }
+
+  // Attendance Management
+  static async getAttendance(filters?: { start_date?: string; end_date?: string }): Promise<any[]> {
+    let query = supabase
+      .from('attendance')
+      .select(`
+        *,
+        student:students(id, first_name, last_name, email),
+        staff:staff(id, first_name, last_name, email)
+      `)
+      .order('date', { ascending: false });
+
+    if (filters?.start_date) {
+      query = query.gte('date', filters.start_date);
+    }
+    if (filters?.end_date) {
+      query = query.lte('date', filters.end_date);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  }
+
+  static async getStaff(): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('staff')
+      .select('*')
+      .order('created_at', { ascending: false });
 
     if (error) throw error;
     return data || [];
