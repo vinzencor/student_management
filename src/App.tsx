@@ -52,7 +52,7 @@ const AppContent: React.FC = () => {
   }, [user]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-secondary-50 to-secondary-100 flex">
+    <div className="min-h-screen bg-gradient-to-br from-secondary-50 to-secondary-100 flex overflow-hidden">
       <Sidebar
         activeView={activeView}
         setActiveView={setActiveView}
@@ -60,11 +60,11 @@ const AppContent: React.FC = () => {
         setSidebarOpen={setSidebarOpen}
       />
 
-      <div className="flex-1 flex flex-col min-h-screen">
+      <div className="flex-1 flex flex-col min-h-screen min-w-0">
         <TopBar setSidebarOpen={setSidebarOpen} />
 
-        <main className="flex-1 px-4 lg:px-6 pb-4 lg:pb-6">
-          <div className="animate-fade-in">
+        <main className="flex-1 px-2 sm:px-4 lg:px-6 pb-4 lg:pb-6 overflow-x-hidden overflow-y-auto">
+          <div className="animate-fade-in max-w-full">
             {activeView === 'dashboard' && <Dashboard setActiveView={setActiveView} />}
             {activeView === 'staff' && <StaffManagement />}
             {activeView === 'leads' && <LeadManagement />}

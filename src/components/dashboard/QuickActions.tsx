@@ -46,10 +46,10 @@ const QuickActions: React.FC<QuickActionsProps> = ({ onAction }) => {
   ];
 
   return (
-    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-      <h2 className="text-xl font-bold text-gray-800 mb-6">Quick Actions</h2>
-      
-      <div className="space-y-4">
+    <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100">
+      <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-4 sm:mb-6">Quick Actions</h2>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {actions.map((action, index) => {
           const Icon = action.icon;
           return (
@@ -57,19 +57,19 @@ const QuickActions: React.FC<QuickActionsProps> = ({ onAction }) => {
               key={action.title}
               onClick={() => onAction(action.action)}
               className={`
-                w-full p-4 bg-gradient-to-r ${action.bgGradient} hover:bg-gradient-to-r hover:${action.hoverGradient}
-                rounded-xl text-white text-left transition-all duration-300 hover:scale-105 hover:shadow-lg
+                w-full p-3 sm:p-4 bg-gradient-to-r ${action.bgGradient} hover:bg-gradient-to-r hover:${action.hoverGradient}
+                rounded-xl text-white text-center sm:text-left transition-all duration-300 hover:scale-105 hover:shadow-lg
                 transform animate-slideInRight
               `}
               style={{ animationDelay: `${index * 0.1}s` }}
             >
-              <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-white bg-opacity-20 rounded-xl flex items-center justify-center">
-                  <Icon className="w-6 h-6" />
+              <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white bg-opacity-20 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Icon className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <div>
-                  <h3 className="font-semibold text-lg">{action.title}</h3>
-                  <p className="text-sm opacity-90">{action.description}</p>
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-sm sm:text-base lg:text-lg">{action.title}</h3>
+                  <p className="text-xs sm:text-sm opacity-90 hidden sm:block">{action.description}</p>
                 </div>
               </div>
             </button>

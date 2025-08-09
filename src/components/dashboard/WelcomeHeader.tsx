@@ -24,25 +24,25 @@ const WelcomeHeader: React.FC = () => {
   const randomMotivation = motivationalLines[Math.floor(Math.random() * motivationalLines.length)];
 
   return (
-    <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 rounded-2xl p-8 text-white relative overflow-hidden pt-4">
+    <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 text-white relative overflow-hidden">
       {/* Background decorative elements */}
-      <div className="absolute top-4 right-4 opacity-20">
-        <Sun className="w-16 h-16" />
+      <div className="absolute top-2 sm:top-4 right-2 sm:right-4 opacity-20">
+        <Sun className="w-8 h-8 sm:w-12 sm:h-12 lg:w-16 lg:h-16" />
       </div>
-      <div className="absolute bottom-4 right-8 opacity-10">
-        <Cloud className="w-12 h-12" />
+      <div className="absolute bottom-2 sm:bottom-4 right-4 sm:right-8 opacity-10">
+        <Cloud className="w-6 h-6 sm:w-8 sm:h-8 lg:w-12 lg:h-12" />
       </div>
 
       <div className="relative z-10">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl md:text-4xl font-bold mb-2 animate-slideInLeft">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 animate-slideInLeft">
               {greeting} 👋
             </h1>
-            <p className="text-blue-100 text-lg mb-4 animate-slideInLeft animation-delay-200">
+            <p className="text-blue-100 text-sm sm:text-base lg:text-lg mb-2 sm:mb-4 animate-slideInLeft animation-delay-200">
               {dateString}
             </p>
-            <p className="text-blue-50 text-base font-medium animate-slideInLeft animation-delay-400">
+            <p className="text-blue-50 text-sm sm:text-base font-medium animate-slideInLeft animation-delay-400">
               {randomMotivation}
             </p>
           </div>

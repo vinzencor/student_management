@@ -49,23 +49,23 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView }) => {
   };
 
   return (
-    <div className="space-y-6 pt-4">
+    <div className="space-y-4 sm:space-y-6 pt-2 sm:pt-4 max-w-full overflow-hidden">
       <WelcomeHeader />
       <KPICards />
 
-      {/* Lead Pipeline - Full Width with Fixed Height */}
-      <div className="w-full">
+      {/* Lead Pipeline - Full Width with Responsive Height */}
+      <div className="w-full min-w-0 overflow-hidden">
         <LeadPipeline onAddLead={() => setShowAddLeadModal(true)} />
       </div>
 
-      {/* Task Automation and Attendance */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Task Automation and Attendance - Responsive Grid */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
         <TaskAutomation />
         <AttendanceHeatmap />
       </div>
 
-      {/* Quick Actions - Moved to Bottom */}
-      <div className="w-full">
+      {/* Quick Actions - Responsive */}
+      <div className="w-full min-w-0">
         <QuickActions onAction={handleQuickAction} />
       </div>
 

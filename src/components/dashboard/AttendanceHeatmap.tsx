@@ -141,7 +141,7 @@ const AttendanceHeatmap: React.FC = () => {
       ) : (
         <>
           {/* Statistics */}
-          <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
             <div className="bg-gradient-to-r from-primary-50 to-primary-100 rounded-xl p-4 border border-primary-200">
               <div className="flex items-center space-x-2 mb-2">
                 {attendanceType === 'students' ? (
@@ -204,7 +204,7 @@ const AttendanceHeatmap: React.FC = () => {
             <h4 className="text-sm font-semibold text-secondary-800 mb-3">
               Recent {attendanceType === 'students' ? 'Student' : 'Staff'} Attendance
             </h4>
-            <div className="grid grid-cols-7 gap-2">
+            <div className="grid grid-cols-3 sm:grid-cols-7 gap-2">
               {attendanceData.slice(-7).map((day) => (
                 <div key={day.date} className="text-center">
                   <div className="text-xs text-secondary-600 mb-1">{day.dayName}</div>

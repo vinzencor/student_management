@@ -104,6 +104,19 @@ const LeadPipeline: React.FC<LeadPipelineProps> = ({ onAddLead }) => {
     setDraggedItem(leadId);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', leadId); // Firefox fix
+
+    // Add visual feedback
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '0.5';
+    }
+  };
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    // Reset visual feedback
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '1';
+    }
+    setDraggedItem(null);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -124,7 +137,7 @@ const LeadPipeline: React.FC<LeadPipelineProps> = ({ onAddLead }) => {
       if (!draggedLead) return;
 
       try {
-        await DataService.updateLead(draggedItem, { status: targetColumn });
+        await DataService.updateLead(draggedItem, { status: targetColumn as 'new' | 'contacted' | 'interested' | 'converted' | 'lost' });
 
         if (targetColumn === 'converted') {
           try {
@@ -217,52 +230,53 @@ const LeadPipeline: React.FC<LeadPipelineProps> = ({ onAddLead }) => {
 
   return (
     <>
-      <div className="bg-white rounded-xl border border-secondary-200 p-4 lg:p-6 shadow-soft">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <h2 className="text-xl lg:text-2xl font-bold text-secondary-800">Lead Pipeline</h2>
-            <p className="text-sm text-secondary-600 mt-1">Drag leads between stages to update their status</p>
+      <div className="bg-white rounded-xl border border-secondary-200 p-3 sm:p-4 lg:p-6 shadow-soft">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 sm:mb-6">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-secondary-800">Lead Pipeline</h2>
+            <p className="text-xs sm:text-sm text-secondary-600 mt-1">Drag leads between stages to update their status</p>
           </div>
           <button
             onClick={onAddLead}
-            className="flex items-center justify-center space-x-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2.5 rounded-xl transition-all duration-200 shadow-soft hover:shadow-medium hover:scale-105 active:scale-95 w-full sm:w-auto"
+            className="flex items-center justify-center space-x-2 bg-primary-600 hover:bg-primary-700 text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all duration-200 shadow-soft hover:shadow-medium hover:scale-105 active:scale-95 w-full sm:w-auto flex-shrink-0"
           >
             <Plus className="w-4 h-4" />
-            <span className="text-sm font-medium">Add Lead</span>
+            <span className="text-xs sm:text-sm font-medium">Add Lead</span>
           </button>
         </div>
 
-        <div className="h-96 overflow-hidden">
-          <div className="flex gap-4 h-full overflow-x-auto pb-2">
+        <div className="h-80 sm:h-96 overflow-hidden">
+          <div className="flex gap-2 sm:gap-3 lg:gap-4 h-full overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-secondary-300 scrollbar-track-secondary-100">
             {columns.map(column => (
-              <div key={column.id} className="flex flex-col h-full min-w-[280px] flex-shrink-0">
-                <div className="flex items-center justify-between mb-4 px-2 flex-shrink-0">
-                  <h3 className="font-semibold text-secondary-700 text-sm lg:text-base truncate">{column.title}</h3>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${column.badgeColor}`}>
+              <div key={column.id} className="flex flex-col h-full min-w-[180px] sm:min-w-[220px] lg:min-w-[260px] flex-shrink-0">
+                <div className="flex items-center justify-between mb-3 sm:mb-4 px-1 sm:px-2 flex-shrink-0">
+                  <h3 className="font-semibold text-secondary-700 text-xs sm:text-sm lg:text-base truncate">{column.title}</h3>
+                  <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full text-xs font-medium ${column.badgeColor}`}>
                     {leads[column.id as keyof typeof leads].length}
                   </span>
                 </div>
 
                 <div
-                  className={`flex-1 ${column.bgColor} ${column.borderColor} border-2 border-dashed rounded-xl p-3 lg:p-4 transition-all duration-200 hover:border-opacity-60 overflow-hidden`}
+                  className={`flex-1 ${column.bgColor} ${column.borderColor} border-2 border-dashed rounded-lg sm:rounded-xl p-2 sm:p-3 lg:p-4 transition-all duration-200 hover:border-opacity-60 overflow-hidden`}
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDrop(e, column.id)}
                 >
-                  <div className="h-full overflow-y-auto space-y-3 pr-1">
+                  <div className="h-full overflow-y-auto space-y-2 sm:space-y-3 pr-1 scrollbar-thin scrollbar-thumb-secondary-300 scrollbar-track-transparent">
                     {leads[column.id as keyof typeof leads].map((lead) => (
                       <div
                         key={lead.id}
                         draggable
                         onDragStart={(e) => handleDragStart(e, lead.id)}
-                        className="bg-white p-3 lg:p-4 rounded-xl shadow-sm border border-secondary-100 cursor-move hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] group"
+                        onDragEnd={handleDragEnd}
+                        className="bg-white p-2 sm:p-3 lg:p-4 rounded-lg sm:rounded-xl shadow-sm border border-secondary-100 cursor-move hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] group touch-manipulation"
                       >
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-start space-x-2 min-w-0 flex-1">
-                            <div className="w-8 h-8 bg-gradient-to-r from-primary-400 to-primary-600 rounded-full flex items-center justify-center flex-shrink-0">
-                              <User className="w-4 h-4 text-white" />
+                        <div className="flex items-start justify-between mb-2 sm:mb-3">
+                          <div className="flex items-start space-x-1 sm:space-x-2 min-w-0 flex-1">
+                            <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-r from-primary-400 to-primary-600 rounded-full flex items-center justify-center flex-shrink-0">
+                              <User className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                             </div>
                             <div className="min-w-0 flex-1">
-                              <h4 className="font-semibold text-secondary-800 text-sm leading-tight truncate">
+                              <h4 className="font-semibold text-secondary-800 text-xs sm:text-sm leading-tight truncate">
                                 {lead.first_name} {lead.last_name}
                               </h4>
                               <p className="text-xs text-secondary-600 mt-1 line-clamp-2">
