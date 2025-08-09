@@ -1,15 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { User, Mail, Phone, MapPin, Calendar, BookOpen, Trophy, Plus, Search, Filter } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Calendar, BookOpen, Trophy, Plus, Search, Filter, Eye, X, Edit } from 'lucide-react';
 import { DataService } from '../services/dataService';
+import { supabase } from '../lib/supabase';
 import type { Student } from '../lib/supabase';
 import AddStudentModal from './modals/AddStudentModal';
+import EditStudentModal from './modals/EditStudentModal';
 
-const StudentProfile: React.FC = () => {
+interface StudentProfileProps {
+  onNavigateToFeeReceipts?: (studentId: string) => void;
+}
+
+const StudentProfile: React.FC<StudentProfileProps> = ({ onNavigateToFeeReceipts }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<any>(null);
+  const [studentCourses, setStudentCourses] = useState<any[]>([]);
+  const [studentFees, setStudentFees] = useState<any[]>([]);
 
   useEffect(() => {
     fetchStudents();
@@ -24,6 +35,33 @@ const StudentProfile: React.FC = () => {
       console.error('Error fetching students:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleViewStudent = async (student: Student) => {
+    try {
+      setSelectedStudent(student);
+
+      // Load student's enrolled courses
+      const { data: coursesData } = await supabase
+        .from('student_courses')
+        .select('*, courses(*)')
+        .eq('student_id', student.id)
+        .eq('status', 'active');
+
+      setStudentCourses(coursesData || []);
+
+      // Load student's fee records
+      const { data: feesData } = await supabase
+        .from('fees')
+        .select('*')
+        .eq('student_id', student.id)
+        .order('created_at', { ascending: false });
+
+      setStudentFees(feesData || []);
+      setShowViewModal(true);
+    } catch (error) {
+      console.error('Error loading student details:', error);
     }
   };
 
@@ -168,11 +206,22 @@ const StudentProfile: React.FC = () => {
             </div>
 
             <div className="flex space-x-2">
-              <button className="flex-1 bg-primary-100 hover:bg-primary-200 text-primary-700 py-2 rounded-lg transition-colors text-sm font-medium">
-                View Profile
+              <button
+                onClick={() => handleViewStudent(student)}
+                className="flex-1 bg-primary-100 hover:bg-primary-200 text-primary-700 py-2 rounded-lg transition-colors text-sm font-medium flex items-center justify-center space-x-1"
+              >
+                <Eye className="w-4 h-4" />
+                <span>View Details</span>
               </button>
-              <button className="flex-1 bg-success-100 hover:bg-success-200 text-success-700 py-2 rounded-lg transition-colors text-sm font-medium">
-                Message
+              <button
+                onClick={() => {
+                  setSelectedStudent(student);
+                  setShowEditModal(true);
+                }}
+                className="flex-1 bg-secondary-100 hover:bg-secondary-200 text-secondary-700 py-2 rounded-lg transition-colors text-sm font-medium flex items-center justify-center space-x-1"
+              >
+                <Edit className="w-4 h-4" />
+                <span>Edit</span>
               </button>
             </div>
           </div>
@@ -191,8 +240,198 @@ const StudentProfile: React.FC = () => {
       <AddStudentModal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
-        onStudentAdded={fetchStudents}
+        onStudentAdded={(studentId, totalFees) => {
+          fetchStudents();
+          if (studentId && onNavigateToFeeReceipts) {
+            // Show success message and redirect to Fee Receipts
+            alert(`Student created successfully! Please go to Fee Receipts section to set up fees and payments for the selected courses (Total: ₹${totalFees?.toLocaleString()}).`);
+            onNavigateToFeeReceipts(studentId);
+          }
+        }}
       />
+
+      {/* Edit Student Modal */}
+      {showEditModal && selectedStudent && (
+        <EditStudentModal
+          isOpen={showEditModal}
+          onClose={() => {
+            setShowEditModal(false);
+            setSelectedStudent(null);
+          }}
+          student={selectedStudent}
+          onStudentUpdated={() => {
+            fetchStudents();
+            setShowEditModal(false);
+            setSelectedStudent(null);
+          }}
+        />
+      )}
+
+      {/* View Student Modal */}
+      {showViewModal && selectedStudent && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-secondary-200">
+              <div>
+                <h2 className="text-2xl font-bold text-secondary-800">Student Details</h2>
+                <p className="text-secondary-600 mt-1">{selectedStudent.first_name} {selectedStudent.last_name}</p>
+              </div>
+              <button
+                onClick={() => setShowViewModal(false)}
+                className="p-2 hover:bg-secondary-100 rounded-xl transition-colors"
+              >
+                <X className="w-6 h-6 text-secondary-500" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Student Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-secondary-800">Personal Information</h3>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-3">
+                      <User className="w-5 h-5 text-secondary-600" />
+                      <div>
+                        <p className="text-sm text-secondary-600">Full Name</p>
+                        <p className="font-medium text-secondary-800">{selectedStudent.first_name} {selectedStudent.last_name}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-3">
+                      <Calendar className="w-5 h-5 text-secondary-600" />
+                      <div>
+                        <p className="text-sm text-secondary-600">Date of Birth</p>
+                        <p className="font-medium text-secondary-800">
+                          {selectedStudent.date_of_birth ? new Date(selectedStudent.date_of_birth).toLocaleDateString() : 'Not provided'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-3">
+                      <Mail className="w-5 h-5 text-secondary-600" />
+                      <div>
+                        <p className="text-sm text-secondary-600">Email</p>
+                        <p className="font-medium text-secondary-800">{selectedStudent.email || 'Not provided'}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-3">
+                      <Phone className="w-5 h-5 text-secondary-600" />
+                      <div>
+                        <p className="text-sm text-secondary-600">Phone</p>
+                        <p className="font-medium text-secondary-800">{selectedStudent.phone || 'Not provided'}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-3">
+                      <MapPin className="w-5 h-5 text-secondary-600" />
+                      <div>
+                        <p className="text-sm text-secondary-600">Address</p>
+                        <p className="font-medium text-secondary-800">{selectedStudent.address || 'Not provided'}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-secondary-800">Academic Information</h3>
+
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm text-secondary-600">Grade Level</p>
+                      <p className="font-medium text-secondary-800">{selectedStudent.grade_level || 'Not assigned'}</p>
+                    </div>
+
+                    <div>
+                      <p className="text-sm text-secondary-600">Enrollment Date</p>
+                      <p className="font-medium text-secondary-800">
+                        {selectedStudent.enrollment_date ? new Date(selectedStudent.enrollment_date).toLocaleDateString() : 'Not provided'}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-sm text-secondary-600">Status</p>
+                      <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
+                        selectedStudent.status === 'active'
+                          ? 'bg-success-100 text-success-800'
+                          : 'bg-warning-100 text-warning-800'
+                      }`}>
+                        {selectedStudent.status}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Enrolled Courses */}
+              <div>
+                <h3 className="text-lg font-semibold text-secondary-800 mb-4">Enrolled Courses</h3>
+                {studentCourses.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {studentCourses.map((enrollment) => (
+                      <div key={enrollment.id} className="bg-primary-50 border border-primary-200 rounded-lg p-4">
+                        <h4 className="font-semibold text-primary-800">{enrollment.courses.name}</h4>
+                        <p className="text-sm text-primary-600">{enrollment.courses.description}</p>
+                        <div className="flex justify-between items-center mt-2">
+                          <span className="text-sm text-secondary-600">
+                            Enrolled: {new Date(enrollment.enrollment_date).toLocaleDateString()}
+                          </span>
+                          <span className="font-semibold text-primary-700">₹{enrollment.courses.price.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 bg-secondary-50 rounded-lg">
+                    <BookOpen className="w-8 h-8 text-secondary-400 mx-auto mb-2" />
+                    <p className="text-secondary-600">No courses enrolled</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Fee Information */}
+              <div>
+                <h3 className="text-lg font-semibold text-secondary-800 mb-4">Fee Information</h3>
+                {studentFees.length > 0 ? (
+                  <div className="space-y-3">
+                    {studentFees.map((fee) => (
+                      <div key={fee.id} className="bg-white border border-secondary-200 rounded-lg p-4">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-medium text-secondary-800">{fee.description}</p>
+                            <p className="text-sm text-secondary-600">Due: {new Date(fee.due_date).toLocaleDateString()}</p>
+                            <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium mt-1 ${
+                              fee.status === 'paid'
+                                ? 'bg-success-100 text-success-800'
+                                : fee.status === 'partial'
+                                ? 'bg-warning-100 text-warning-800'
+                                : 'bg-red-100 text-red-800'
+                            }`}>
+                              {fee.status}
+                            </span>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-semibold text-secondary-800">₹{fee.amount.toLocaleString()}</p>
+                            <p className="text-sm text-success-600">Paid: ₹{(fee.paid_amount || 0).toLocaleString()}</p>
+                            <p className="text-sm text-red-600">Remaining: ₹{fee.remaining_amount.toLocaleString()}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 bg-secondary-50 rounded-lg">
+                    <Trophy className="w-8 h-8 text-secondary-400 mx-auto mb-2" />
+                    <p className="text-secondary-600">No fee records found</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

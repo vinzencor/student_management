@@ -14,13 +14,21 @@ import FeeManagement from './components/FeeManagement';
 import Reports from './components/Reports';
 import AttendanceManagement from './components/AttendanceManagement';
 import Accounts from './components/Accounts';
+import IncomeReports from './components/IncomeReports';
+import ExpenseReports from './components/ExpenseReports';
 import Receipts from './components/Receipts';
+import FeeReceipts from './components/FeeReceipts';
 
 // Main App Content Component
 const AppContent: React.FC = () => {
   const { user } = useAuth();
   const [activeView, setActiveView] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const handleNavigateToFeeReceipts = (studentId: string) => {
+    setActiveView('fee-receipts');
+    // You can also store the studentId in state if you want to filter by that student
+  };
 
   // Set default landing page based on user role
   useEffect(() => {
@@ -68,14 +76,17 @@ const AppContent: React.FC = () => {
             {activeView === 'dashboard' && <Dashboard setActiveView={setActiveView} />}
             {activeView === 'staff' && <StaffManagement />}
             {activeView === 'leads' && <LeadManagement />}
-            {activeView === 'students' && <StudentProfile />}
+            {activeView === 'students' && <StudentProfile onNavigateToFeeReceipts={handleNavigateToFeeReceipts} />}
             {activeView === 'batches' && <StudentsByBatch />}
             {activeView === 'courses' && <CourseManagement />}
             {activeView === 'schedule' && <ClassSchedule />}
             {activeView === 'attendance' && <AttendanceManagement />}
             {activeView === 'fees' && <FeeManagement />}
             {activeView === 'accounts' && <Accounts />}
+            {activeView === 'accounts-income' && <IncomeReports />}
+            {activeView === 'accounts-expense' && <ExpenseReports />}
             {activeView === 'receipts' && <Receipts />}
+            {activeView === 'fee-receipts' && <FeeReceipts />}
             {activeView === 'reports' && <Reports />}
             {activeView === 'settings' && <div className="text-center py-12"><h2 className="text-2xl font-bold text-secondary-600">Settings - Coming Soon</h2></div>}
           </div>

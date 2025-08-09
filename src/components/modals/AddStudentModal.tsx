@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { X, User, Mail, Phone, MapPin, Calendar, BookOpen, AlertCircle, Users } from 'lucide-react';
 import { DataService } from '../../services/dataService';
+import { supabase } from '../../lib/supabase';
 import type { Student, Parent } from '../../lib/supabase';
 
 interface AddStudentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onStudentAdded: () => void;
+  onStudentAdded: (studentId?: string, totalFees?: number) => void;
 }
 
 const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onStudentAdded }) => {
@@ -35,12 +36,51 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [createParent, setCreateParent] = useState(true);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [selectedCourses, setSelectedCourses] = useState<any[]>([]);
 
   const subjects = [
-    'Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 
+    'Mathematics', 'Physics', 'Chemistry', 'Biology', 'English',
     'History', 'Geography', 'Computer Science', 'Economics', 'Art',
     'Music', 'Physical Education', 'Literature', 'Psychology', 'Philosophy'
   ];
+
+  useEffect(() => {
+    if (isOpen) {
+      loadCourses();
+    }
+  }, [isOpen]);
+
+  const loadCourses = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('courses')
+        .select('*')
+        .eq('status', 'active')
+        .order('name');
+      if (error) throw error;
+      setCourses(data || []);
+    } catch (error) {
+      console.error('Error loading courses:', error);
+    }
+  };
+
+  const handleCourseToggle = (courseId: string) => {
+    const course = courses.find(c => c.id === courseId);
+    if (!course) return;
+
+    const isSelected = selectedCourses.some(c => c.id === courseId);
+
+    if (isSelected) {
+      setSelectedCourses(selectedCourses.filter(c => c.id !== courseId));
+    } else {
+      setSelectedCourses([...selectedCourses, course]);
+    }
+  };
+
+  const getTotalFees = () => {
+    return selectedCourses.reduce((total, course) => total + course.price, 0);
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -71,18 +111,48 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
 
       // Create parent if needed
       if (createParent) {
-        const parent = await DataService.createParent(parentData);
-        parentId = parent.id;
+        // Check if parent already exists by email
+        const existingParent = parentData.email ? await DataService.findParentByEmail(parentData.email) : null;
+        if (existingParent) {
+          // Update existing parent with new information
+          const updatedParent = await DataService.updateParent(existingParent.id, parentData);
+          parentId = updatedParent.id;
+        } else {
+          // Create new parent
+          const parent = await DataService.createParent(parentData);
+          parentId = parent.id;
+        }
       }
 
       // Create student
       const studentData = {
         ...formData,
-        parent_id: parentId
+        parent_id: parentId,
+        course_id: selectedCourses[0]?.id || null // Set primary course
       };
 
-      await DataService.createStudent(studentData);
-      onStudentAdded();
+      const createdStudent = await DataService.createStudent(studentData);
+
+      // Don't create fee records automatically - let user set them in Fee Receipts
+      console.log(`Student created with ${selectedCourses.length} courses. Total fees: ₹${getTotalFees()}`);
+
+      // Create student-course enrollment records
+      for (const course of selectedCourses) {
+        try {
+          await supabase
+            .from('student_courses')
+            .insert([{
+              student_id: createdStudent.id,
+              course_id: course.id,
+              enrollment_date: formData.enrollment_date,
+              status: 'active'
+            }]);
+        } catch (enrollmentError) {
+          console.error(`Error creating enrollment record for course ${course.name}:`, enrollmentError);
+        }
+      }
+
+      onStudentAdded(createdStudent.id, getTotalFees());
       onClose();
       
       // Reset form
@@ -106,6 +176,7 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
         address: '',
         occupation: ''
       });
+      setSelectedCourses([]);
     } catch (error: any) {
       setError(error.message || 'Failed to create student');
     } finally {
@@ -280,6 +351,63 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
                   />
                 </div>
 
+                {/* Course Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-secondary-700 mb-3">
+                    Select Courses * (Multiple courses allowed)
+                  </label>
+                  <div className="space-y-3 max-h-48 overflow-y-auto border border-secondary-300 rounded-xl p-4">
+                    {courses.map((course) => {
+                      const isSelected = selectedCourses.some(c => c.id === course.id);
+                      return (
+                        <div key={course.id} className="flex items-center space-x-3">
+                          <input
+                            type="checkbox"
+                            id={`course-${course.id}`}
+                            checked={isSelected}
+                            onChange={() => handleCourseToggle(course.id)}
+                            className="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 focus:ring-2"
+                          />
+                          <label htmlFor={`course-${course.id}`} className="flex-1 cursor-pointer">
+                            <div className="flex justify-between items-center">
+                              <div>
+                                <p className="font-medium text-secondary-800">{course.name}</p>
+                                <p className="text-xs text-secondary-600">{course.description}</p>
+                              </div>
+                              <span className="font-semibold text-primary-600">₹{course.price.toLocaleString()}</span>
+                            </div>
+                          </label>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Selected Courses Summary */}
+                  {selectedCourses.length > 0 && (
+                    <div className="mt-4 p-4 bg-primary-50 border border-primary-200 rounded-lg">
+                      <h4 className="font-medium text-primary-800 mb-2">Selected Courses ({selectedCourses.length})</h4>
+                      <div className="space-y-2">
+                        {selectedCourses.map((course) => (
+                          <div key={course.id} className="flex justify-between items-center text-sm">
+                            <span className="text-primary-700">{course.name}</span>
+                            <span className="font-semibold text-primary-800">₹{course.price.toLocaleString()}</span>
+                          </div>
+                        ))}
+                        <div className="border-t border-primary-300 pt-2 mt-2">
+                          <div className="flex justify-between items-center font-bold text-primary-900">
+                            <span>Total Course Fees:</span>
+                            <span>₹{getTotalFees().toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedCourses.length === 0 && (
+                    <p className="text-sm text-red-600 mt-2">Please select at least one course</p>
+                  )}
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-secondary-700 mb-2">
                     Subjects
@@ -435,7 +563,7 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || selectedCourses.length === 0}
               className="px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Creating...' : 'Create Student'}

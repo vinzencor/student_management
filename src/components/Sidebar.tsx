@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Home,
   Users,
@@ -8,7 +8,12 @@ import {
   Settings,
   GraduationCap,
   X,
-  UserCog
+  UserCog,
+  ChevronDown,
+  ChevronRight,
+  TrendingUp,
+  TrendingDown,
+  Download
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -21,6 +26,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, sidebarOpen, setSidebarOpen }) => {
   const { user } = useAuth();
+  const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
 
   const allMenuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home, badge: null },
@@ -32,8 +38,20 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, sidebarOpe
     { id: 'schedule', label: 'Class Schedule', icon: Calendar, badge: null },
     { id: 'attendance', label: 'Attendance', icon: Calendar, badge: null },
     { id: 'fees', label: 'Fee Management', icon: DollarSign, badge: null },
-    { id: 'accounts', label: 'Accounts', icon: DollarSign, badge: null },
+    {
+      id: 'accounts',
+      label: 'Accounts',
+      icon: DollarSign,
+      badge: null,
+      hasSubMenu: true,
+      subItems: [
+        { id: 'accounts', label: 'Overview', icon: DollarSign },
+        { id: 'accounts-income', label: 'Income Reports', icon: TrendingUp },
+        { id: 'accounts-expense', label: 'Expense Reports', icon: TrendingDown }
+      ]
+    },
     { id: 'receipts', label: 'Receipts', icon: BarChart3, badge: null },
+    { id: 'fee-receipts', label: 'Fee Receipts', icon: Download, badge: null },
     { id: 'reports', label: 'Reports & Analytics', icon: BarChart3, badge: null },
     { id: 'settings', label: 'Settings', icon: Settings, badge: null },
   ];
@@ -87,7 +105,21 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, sidebarOpe
     allMenuItemsCount: allMenuItems.length
   });
 
-  const handleMenuClick = (viewId: string) => {
+  const handleMenuClick = (viewId: string, hasSubMenu?: boolean) => {
+    if (hasSubMenu) {
+      // Toggle sub-menu expansion
+      setExpandedMenus(prev =>
+        prev.includes(viewId)
+          ? prev.filter(id => id !== viewId)
+          : [...prev, viewId]
+      );
+    } else {
+      setActiveView(viewId);
+      setSidebarOpen(false);
+    }
+  };
+
+  const handleSubMenuClick = (viewId: string) => {
     setActiveView(viewId);
     setSidebarOpen(false);
   };
@@ -163,39 +195,76 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, sidebarOpe
               </div>
             ) : (
               // Menu items
-              menuItems.map((item) => {
+              menuItems.map((item: any) => {
                 const Icon = item.icon;
-                const isActive = activeView === item.id;
+                const isActive = activeView === item.id || (item.subItems && item.subItems.some((sub: any) => sub.id === activeView));
+                const isExpanded = expandedMenus.includes(item.id);
 
                 return (
-                  <button
-                    key={item.id}
-                    onClick={() => handleMenuClick(item.id)}
-                    className={`
-                    w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left transition-all duration-200 group
-                    ${isActive
-                      ? 'bg-gradient-to-r from-primary-50 to-primary-100 text-primary-700 shadow-soft border border-primary-200'
-                      : 'text-secondary-600 hover:bg-secondary-50 hover:text-secondary-900'
-                    }
-                    hover:scale-[1.01] transform
-                  `}
-                >
-                  <div className="flex items-center space-x-3">
-                    <Icon className={`w-5 h-5 ${isActive ? 'text-primary-600' : 'group-hover:text-secondary-700'}`} />
-                    <span className="font-medium">{item.label}</span>
+                  <div key={item.id}>
+                    <button
+                      onClick={() => handleMenuClick(item.id, item.hasSubMenu)}
+                      className={`
+                      w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left transition-all duration-200 group
+                      ${isActive
+                        ? 'bg-gradient-to-r from-primary-50 to-primary-100 text-primary-700 shadow-soft border border-primary-200'
+                        : 'text-secondary-600 hover:bg-secondary-50 hover:text-secondary-900'
+                      }
+                      hover:scale-[1.01] transform
+                    `}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <Icon className={`w-5 h-5 ${isActive ? 'text-primary-600' : 'group-hover:text-secondary-700'}`} />
+                        <span className="font-medium">{item.label}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        {item.badge && (
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                            isActive
+                              ? 'bg-primary-200 text-primary-700'
+                              : 'bg-secondary-200 text-secondary-700'
+                          }`}>
+                            {item.badge}
+                          </span>
+                        )}
+                        {item.hasSubMenu && (
+                          <div className={`transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}>
+                            <ChevronRight className="w-4 h-4" />
+                          </div>
+                        )}
+                      </div>
+                    </button>
+
+                    {/* Sub-menu items */}
+                    {item.hasSubMenu && isExpanded && (
+                      <div className="ml-4 mt-1 space-y-1">
+                        {item.subItems.map((subItem: any) => {
+                          const SubIcon = subItem.icon;
+                          const isSubActive = activeView === subItem.id;
+
+                          return (
+                            <button
+                              key={subItem.id}
+                              onClick={() => handleSubMenuClick(subItem.id)}
+                              className={`
+                              w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-all duration-200 group text-sm
+                              ${isSubActive
+                                ? 'bg-gradient-to-r from-primary-100 to-primary-200 text-primary-800 shadow-soft border border-primary-300'
+                                : 'text-secondary-600 hover:bg-secondary-50 hover:text-secondary-900'
+                              }
+                              hover:scale-[1.01] transform
+                            `}
+                            >
+                              <SubIcon className={`w-4 h-4 ${isSubActive ? 'text-primary-700' : 'group-hover:text-secondary-700'}`} />
+                              <span className="font-medium">{subItem.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                  {item.badge && (
-                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                      isActive
-                        ? 'bg-primary-200 text-primary-700'
-                        : 'bg-secondary-200 text-secondary-700'
-                    }`}>
-                      {item.badge}
-                    </span>
-                  )}
-                </button>
-              );
-            }))
+                );
+              }))
             }
           </div>
         </nav>

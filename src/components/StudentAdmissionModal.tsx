@@ -18,7 +18,7 @@ const StudentAdmissionModal: React.FC<StudentAdmissionModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [courses, setCourses] = useState<any[]>([]);
-  const [selectedCourse, setSelectedCourse] = useState<any | null>(null);
+  const [selectedCourses, setSelectedCourses] = useState<any[]>([]);
   
   // Student form data
   const [studentForm, setStudentForm] = useState({
@@ -83,10 +83,23 @@ const StudentAdmissionModal: React.FC<StudentAdmissionModalProps> = ({
     }
   };
 
-  const handleCourseChange = (courseId: string) => {
+  const handleCourseToggle = (courseId: string) => {
     const course = courses.find(c => c.id === courseId);
-    setSelectedCourse(course);
-    setStudentForm({...studentForm, course_id: courseId});
+    if (!course) return;
+
+    const isSelected = selectedCourses.some(c => c.id === courseId);
+
+    if (isSelected) {
+      // Remove course
+      setSelectedCourses(selectedCourses.filter(c => c.id !== courseId));
+    } else {
+      // Add course
+      setSelectedCourses([...selectedCourses, course]);
+    }
+  };
+
+  const getTotalFees = () => {
+    return selectedCourses.reduce((total, course) => total + course.price, 0);
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -127,11 +140,32 @@ const StudentAdmissionModal: React.FC<StudentAdmissionModalProps> = ({
       const studentData = {
         ...studentForm,
         parent_id: parentId,
-        photo_url: photoUrl
+        photo_url: photoUrl,
+        course_id: selectedCourses[0]?.id || '' // Set primary course
       };
       const createdStudent = await DataService.createStudent(studentData);
 
-      onComplete(createdStudent.id, parentId, selectedCourse?.id || '', selectedCourse?.price || 0);
+      // Don't create fee records automatically - let user set them in Fee Receipts
+      const totalFees = getTotalFees();
+      console.log(`Student created with ${selectedCourses.length} courses. Total fees: ₹${totalFees}`);
+
+      // 5. Create student-course enrollment records
+      for (const course of selectedCourses) {
+        try {
+          await supabase
+            .from('student_courses')
+            .insert([{
+              student_id: createdStudent.id,
+              course_id: course.id,
+              enrollment_date: studentForm.enrollment_date,
+              status: 'active'
+            }]);
+        } catch (enrollmentError) {
+          console.error(`Error creating enrollment record for course ${course.name}:`, enrollmentError);
+        }
+      }
+
+      onComplete(createdStudent.id, parentId, selectedCourses.map(c => c.id).join(','), totalFees);
       onClose();
     } catch (error) {
       console.error('Error creating student admission:', error);
@@ -269,25 +303,57 @@ const StudentAdmissionModal: React.FC<StudentAdmissionModalProps> = ({
                     onChange={(e) => setStudentForm({...studentForm, grade_level: e.target.value})}
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-secondary-700 mb-1">Course *</label>
-                  <select
-                    required
-                    className="w-full border border-secondary-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                    value={studentForm.course_id}
-                    onChange={(e) => handleCourseChange(e.target.value)}
-                  >
-                    <option value="">Select Course</option>
-                    {courses.map((course) => (
-                      <option key={course.id} value={course.id}>
-                        {course.name} - ₹{course.price.toLocaleString()}
-                      </option>
-                    ))}
-                  </select>
-                  {selectedCourse && (
-                    <p className="text-sm text-secondary-600 mt-1">
-                      Course Fee: ₹{selectedCourse.price.toLocaleString()}
-                    </p>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-secondary-700 mb-3">Select Courses * (Multiple courses allowed)</label>
+                  <div className="space-y-3 max-h-48 overflow-y-auto border border-secondary-300 rounded-lg p-4">
+                    {courses.map((course) => {
+                      const isSelected = selectedCourses.some(c => c.id === course.id);
+                      return (
+                        <div key={course.id} className="flex items-center space-x-3">
+                          <input
+                            type="checkbox"
+                            id={`course-${course.id}`}
+                            checked={isSelected}
+                            onChange={() => handleCourseToggle(course.id)}
+                            className="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 focus:ring-2"
+                          />
+                          <label htmlFor={`course-${course.id}`} className="flex-1 cursor-pointer">
+                            <div className="flex justify-between items-center">
+                              <div>
+                                <p className="font-medium text-secondary-800">{course.name}</p>
+                                <p className="text-xs text-secondary-600">{course.description}</p>
+                              </div>
+                              <span className="font-semibold text-primary-600">₹{course.price.toLocaleString()}</span>
+                            </div>
+                          </label>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Selected Courses Summary */}
+                  {selectedCourses.length > 0 && (
+                    <div className="mt-4 p-4 bg-primary-50 border border-primary-200 rounded-lg">
+                      <h4 className="font-medium text-primary-800 mb-2">Selected Courses ({selectedCourses.length})</h4>
+                      <div className="space-y-2">
+                        {selectedCourses.map((course) => (
+                          <div key={course.id} className="flex justify-between items-center text-sm">
+                            <span className="text-primary-700">{course.name}</span>
+                            <span className="font-semibold text-primary-800">₹{course.price.toLocaleString()}</span>
+                          </div>
+                        ))}
+                        <div className="border-t border-primary-300 pt-2 mt-2">
+                          <div className="flex justify-between items-center font-bold text-primary-900">
+                            <span>Total Course Fees:</span>
+                            <span>₹{getTotalFees().toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedCourses.length === 0 && (
+                    <p className="text-sm text-red-600 mt-2">Please select at least one course</p>
                   )}
                 </div>
                 <div>
@@ -411,7 +477,7 @@ const StudentAdmissionModal: React.FC<StudentAdmissionModalProps> = ({
                 <button
                   onClick={() => setCurrentStep(2)}
                   className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-                  disabled={!studentForm.first_name || !studentForm.last_name || !studentForm.date_of_birth || !studentForm.gender || !studentForm.address || !studentForm.course_id || !studentForm.batch_duration || !studentForm.batch_start_date}
+                  disabled={!studentForm.first_name || !studentForm.last_name || !studentForm.date_of_birth || !studentForm.gender || !studentForm.address || selectedCourses.length === 0 || !studentForm.batch_duration || !studentForm.batch_start_date}
                 >
                   Next: Parent Details
                 </button>

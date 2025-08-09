@@ -36,13 +36,18 @@ const FeeManagement: React.FC = () => {
         .order('name');
       setCourses(coursesData || []);
 
-      // Load all students with their course info
+      // Load all students with their course info and enrolled courses
       const { data: studentsData } = await supabase
         .from('students')
         .select(`
           *,
           course:courses(id, name, price),
-          parent:parents(first_name, last_name, phone)
+          parent:parents(first_name, last_name, phone),
+          student_courses(
+            course_id,
+            status,
+            courses(id, name, price)
+          )
         `)
         .eq('status', 'active')
         .order('first_name');
@@ -60,7 +65,7 @@ const FeeManagement: React.FC = () => {
 
   const loadComprehensiveFees = async (studentsData: any[]) => {
     try {
-      // Simply load fee records from the database (they should be synced by triggers)
+      // Load fee records from the database
       const { data: feeRecords, error } = await supabase
         .from('fees')
         .select('*')
@@ -71,16 +76,90 @@ const FeeManagement: React.FC = () => {
         return;
       }
 
-      // Map fee records to include student and course info
-      const allFees = (feeRecords || []).map(fee => {
-        const student = studentsData.find(s => s.id === fee.student_id);
+      // Group fees by student and aggregate totals
+      const studentFeeMap = new Map();
+
+      // Initialize map with all students
+      studentsData.forEach(student => {
+        const enrolledCourses = student.student_courses?.map(sc => sc.courses).filter(Boolean) || [];
+        const primaryCourse = student.course;
+
+        // Combine primary course with enrolled courses (avoid duplicates)
+        const allCourses = [];
+        if (primaryCourse) allCourses.push(primaryCourse);
+        enrolledCourses.forEach(course => {
+          if (!allCourses.find(c => c.id === course.id)) {
+            allCourses.push(course);
+          }
+        });
+
+        studentFeeMap.set(student.id, {
+          student,
+          courses: allCourses,
+          totalAmount: 0,
+          totalPaid: 0,
+          totalRemaining: 0,
+          status: 'pending',
+          feeRecords: []
+        });
+      });
+
+      // Process fee records
+      (feeRecords || []).forEach(fee => {
+        const studentFee = studentFeeMap.get(fee.student_id);
+        if (studentFee) {
+          studentFee.totalAmount += fee.amount || 0;
+          studentFee.totalPaid += fee.paid_amount || 0;
+          studentFee.feeRecords.push(fee);
+        }
+      });
+
+      // Calculate remaining amounts and status - only include students with actual fee records
+      const allFees = Array.from(studentFeeMap.values())
+        .filter(studentFee => studentFee.feeRecords.length > 0) // Only show students with fee records
+        .map(studentFee => {
+          studentFee.totalRemaining = Math.max(0, studentFee.totalAmount - studentFee.totalPaid);
+
+          // Determine overall status
+          if (studentFee.totalRemaining > 0 && studentFee.totalPaid > 0) {
+            studentFee.status = 'partial';
+          } else if (studentFee.totalRemaining <= 0 && studentFee.totalPaid > 0) {
+            studentFee.status = 'paid';
+          } else {
+            studentFee.status = 'unpaid';
+          }
+
+        // Get the earliest due date from fee records
+        const earliestDueDate = studentFee.feeRecords.length > 0
+          ? studentFee.feeRecords.reduce((earliest, fee) => {
+              return new Date(fee.due_date) < new Date(earliest) ? fee.due_date : earliest;
+            }, studentFee.feeRecords[0].due_date)
+          : new Date().toISOString().split('T')[0];
+
+        // Get the latest paid date if any
+        const latestPaidDate = studentFee.feeRecords
+          .filter(fee => fee.paid_date)
+          .reduce((latest, fee) => {
+            return new Date(fee.paid_date) > new Date(latest || '1970-01-01') ? fee.paid_date : latest;
+          }, null);
+
         return {
-          ...fee,
-          remaining_amount: Math.max(0, (fee.amount || 0) - (fee.paid_amount || 0)),
-          student: student,
-          course: student?.course
+          id: `student-${studentFee.student.id}`,
+          student_id: studentFee.student.id,
+          student: studentFee.student,
+          courses: studentFee.courses,
+          amount: studentFee.totalAmount,
+          paid_amount: studentFee.totalPaid,
+          remaining_amount: studentFee.totalRemaining,
+          status: studentFee.status,
+          fee_type: 'tuition',
+          description: `Total fees for ${studentFee.courses.length} course(s)`,
+          due_date: earliestDueDate,
+          paid_date: latestPaidDate,
+          feeRecords: studentFee.feeRecords,
+          course: studentFee.courses[0] // For backward compatibility
         };
-      }).filter(fee => fee.student); // Only include fees with valid students
+      }).filter(fee => fee.student);
 
       setFees(allFees);
     } catch (error) {
@@ -407,11 +486,28 @@ const FeeManagement: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="font-medium text-secondary-800">
-                        {fee.course?.name || fee.student?.course?.name || '-'}
-                      </div>
-                      <div className="text-sm text-secondary-600">
-                        Course Fee: ₹{(fee.course?.price || fee.student?.course?.price || 0).toLocaleString()}
+                      <div className="space-y-1">
+                        {fee.courses && fee.courses.length > 0 ? (
+                          fee.courses.map((course, index) => (
+                            <div key={course.id} className="flex justify-between items-center">
+                              <span className="font-medium text-secondary-800 text-sm">
+                                {course.name}
+                              </span>
+                              <span className="text-xs text-secondary-600">
+                                ₹{course.price.toLocaleString()}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="font-medium text-secondary-800">
+                            {fee.course?.name || fee.student?.course?.name || 'No course assigned'}
+                          </div>
+                        )}
+                        {fee.courses && fee.courses.length > 1 && (
+                          <div className="text-xs text-primary-600 font-medium">
+                            {fee.courses.length} courses enrolled
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4">
