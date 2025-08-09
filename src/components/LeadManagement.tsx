@@ -1,19 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Plus, 
-  Search, 
-  Filter, 
-  Phone, 
-  Mail, 
-  Calendar, 
-  User, 
+import {
+  Plus,
+  Search,
+  Filter,
+  Phone,
+  Mail,
+  Calendar,
+  User,
   MapPin,
   Clock,
   TrendingUp,
   UserPlus,
   AlertCircle,
   CheckCircle,
-  XCircle
+  XCircle,
+  Download,
+  CalendarRange
 } from 'lucide-react';
 import { DataService } from '../services/dataService';
 import type { Lead } from '../lib/supabase';
@@ -26,6 +28,9 @@ const LeadManagement: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     fetchLeads();
@@ -43,16 +48,79 @@ const LeadManagement: React.FC = () => {
     }
   };
 
+  const downloadLeadReport = async () => {
+    try {
+      setDownloading(true);
+
+      // Filter leads based on date range and other filters
+      const filteredData = filteredLeads.filter(lead => {
+        if (!startDate && !endDate) return true;
+
+        const leadDate = new Date(lead.created_at);
+        const start = startDate ? new Date(startDate) : null;
+        const end = endDate ? new Date(endDate) : null;
+
+        if (start && leadDate < start) return false;
+        if (end && leadDate > end) return false;
+
+        return true;
+      });
+
+      // Create CSV content
+      const headers = ['Name', 'Phone', 'Email', 'Status', 'Source', 'Subjects Interested', 'Created Date', 'Notes'];
+      const csvContent = [
+        headers.join(','),
+        ...filteredData.map(lead => [
+          `"${lead.first_name} ${lead.last_name}"`,
+          `"${lead.phone}"`,
+          `"${lead.email || ''}"`,
+          `"${lead.status}"`,
+          `"${lead.source || ''}"`,
+          `"${Array.isArray(lead.subjects_interested) ? lead.subjects_interested.join('; ') : ''}"`,
+          `"${new Date(lead.created_at).toLocaleDateString()}"`,
+          `"${lead.notes || ''}"`
+        ].join(','))
+      ].join('\n');
+
+      // Download CSV file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `lead-report-${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+    } catch (error) {
+      console.error('Error downloading report:', error);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const filteredLeads = leads.filter(lead => {
-    const matchesSearch = 
+    const matchesSearch =
       lead.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       lead.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       lead.phone.includes(searchTerm) ||
       (lead.email && lead.email.toLowerCase().includes(searchTerm.toLowerCase()));
-    
+
     const matchesStatus = statusFilter === 'all' || lead.status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
+
+    // Date range filtering
+    let matchesDateRange = true;
+    if (startDate || endDate) {
+      const leadDate = new Date(lead.created_at);
+      const start = startDate ? new Date(startDate) : null;
+      const end = endDate ? new Date(endDate) : null;
+
+      if (start && leadDate < start) matchesDateRange = false;
+      if (end && leadDate > end) matchesDateRange = false;
+    }
+
+    return matchesSearch && matchesStatus && matchesDateRange;
   });
 
   const getStatusIcon = (status: string) => {
@@ -205,32 +273,75 @@ const LeadManagement: React.FC = () => {
 
       {/* Filters */}
       <div className="bg-white p-4 rounded-xl border border-secondary-200 shadow-soft">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-secondary-400" />
-            <input
-              type="text"
-              placeholder="Search leads by name, phone, or email..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border border-secondary-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-            />
+        <div className="flex flex-col gap-4">
+          {/* First Row - Search and Status */}
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-secondary-400" />
+              <input
+                type="text"
+                placeholder="Search leads by name, phone, or email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 border border-secondary-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
+
+            <div className="relative">
+              <Filter className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-secondary-400" />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="pl-10 pr-8 py-2.5 border border-secondary-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white min-w-[140px]"
+              >
+                <option value="all">All Status</option>
+                <option value="new">New</option>
+                <option value="contacted">Contacted</option>
+                <option value="interested">Interested</option>
+                <option value="converted">Converted</option>
+                <option value="lost">Lost</option>
+              </select>
+            </div>
           </div>
-          
-          <div className="relative">
-            <Filter className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-secondary-400" />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="pl-10 pr-8 py-2.5 border border-secondary-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
+
+          {/* Second Row - Date Range and Download */}
+          <div className="flex flex-col sm:flex-row gap-4 items-end">
+            <div className="flex flex-col sm:flex-row gap-4 flex-1">
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-secondary-700 mb-1">Start Date</label>
+                <div className="relative">
+                  <CalendarRange className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-secondary-400" />
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="pl-10 pr-4 py-2.5 border border-secondary-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-secondary-700 mb-1">End Date</label>
+                <div className="relative">
+                  <CalendarRange className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-secondary-400" />
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="pl-10 pr-4 py-2.5 border border-secondary-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={downloadLeadReport}
+              disabled={downloading}
+              className="flex items-center space-x-2 bg-success-600 hover:bg-success-700 text-white px-4 py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <option value="all">All Status</option>
-              <option value="new">New</option>
-              <option value="contacted">Contacted</option>
-              <option value="interested">Interested</option>
-              <option value="converted">Converted</option>
-              <option value="lost">Lost</option>
-            </select>
+              <Download className="w-5 h-5" />
+              <span>{downloading ? 'Downloading...' : 'Download Report'}</span>
+            </button>
           </div>
         </div>
       </div>

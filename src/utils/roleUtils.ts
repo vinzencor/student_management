@@ -17,46 +17,90 @@ export const DEFAULT_PERMISSIONS: Record<UserRole, string[]> = {
     'manage_students',
     'manage_leads',
     'manage_classes',
+    'manage_courses',
     'manage_fees',
+    'manage_accounts',
+    'manage_attendance',
     'view_reports',
     'export_data',
     'manage_settings',
     'view_all_reports',
-    'manage_salaries'
+    'manage_salaries',
+    'manage_receipts',
+    'view_batches'
   ],
   teacher: [
     'view_dashboard',
     'view_students',
+    'manage_students',
     'view_student_details',
-    'view_student_fees',
-    'view_student_reports',
     'mark_attendance',
+    'view_attendance',
+    'manage_attendance',
+    'view_classes',
+    'manage_classes',
+    'view_courses',
+    'manage_courses',
+    'view_schedule',
+    'manage_schedule',
+    'view_batches',
+    'manage_batches',
+    'view_reports',
+    'view_student_reports',
+    'view_fees',
+    'view_student_fees',
+    'export_data',
+    'manage_communications',
+    'view_performance',
     'add_performance',
-    'view_classes'
+    'view_all_reports'
   ],
   office_staff: [
     'view_dashboard',
     'manage_students',
     'manage_leads',
     'view_reports',
-    'manage_communications'
+    'manage_communications',
+    'view_batches',
+    'view_courses',
+    'mark_attendance'
   ],
   accountant: [
     'view_dashboard',
     'manage_fees',
+    'view_fees',
+    'manage_accounts',
+    'view_accounts',
+    'manage_receipts',
+    'view_receipts',
     'view_financial_reports',
     'manage_salaries',
     'view_money_flow',
-    'export_financial_data'
+    'export_financial_data',
+    'view_reports',
+    'manage_staff',
+    'view_staff',
+    'manage_leads',
+    'view_leads',
+    'view_students',
+    'view_student_fees',
+    'export_data'
   ]
 };
 
-// Navigation items for each role
+// Navigation items for each role - Updated based on your requirements
 export const ROLE_NAVIGATION: Record<UserRole, string[]> = {
+  // Super Admin: Full access to all features
   super_admin: ['dashboard', 'staff', 'students', 'batches', 'leads', 'courses', 'schedule', 'attendance', 'fees', 'accounts', 'receipts', 'reports', 'settings'],
-  teacher: ['dashboard', 'students', 'batches', 'courses', 'schedule', 'attendance', 'reports'],
-  office_staff: ['dashboard', 'students', 'batches', 'leads', 'courses', 'attendance', 'receipts', 'reports'],
-  accountant: ['dashboard', 'fees', 'accounts', 'receipts', 'reports']
+
+  // Teacher: Students, attendance, courses, class scheduling, batches, reports, fees (view only) - NO LEADS
+  teacher: ['dashboard', 'students', 'batches', 'courses', 'schedule', 'attendance', 'fees', 'reports'],
+
+  // Office Staff: Students, leads, basic operations
+  office_staff: ['dashboard', 'students', 'batches', 'leads', 'courses', 'attendance', 'reports'],
+
+  // Accountant: All account-related features including staff management for salaries, leads for revenue tracking
+  accountant: ['dashboard', 'staff', 'leads', 'fees', 'accounts', 'receipts', 'reports']
 };
 
 // Check if user has a specific permission

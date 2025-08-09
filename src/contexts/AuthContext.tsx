@@ -86,17 +86,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Determine role from multiple sources (priority order)
       let userRole: UserRole = 'teacher'; // default
 
-      // 1. Check if auth user has role field (new Supabase setup)
-      if ((authUser as any).role) {
-        userRole = (authUser as any).role as UserRole;
+      // Debug logging for role detection
+      console.log('🔍 Role Detection Debug:', {
+        email: authUser.email,
+        authUserRole: (authUser as any).role,
+        staffDataRole: staffData?.role,
+        userMetadataRole: authUser.user_metadata?.role,
+        rawUserMetadata: authUser.user_metadata
+      });
+
+      // 1. Check user metadata role (most reliable for new users)
+      if (authUser.user_metadata?.role) {
+        userRole = authUser.user_metadata.role as UserRole;
+        console.log('✅ Role from user_metadata:', userRole);
       }
       // 2. Check staff data role
       else if (staffData?.role) {
         userRole = staffData.role as UserRole;
+        console.log('✅ Role from staff data:', userRole);
       }
-      // 3. Check user metadata role
-      else if (authUser.user_metadata?.role) {
-        userRole = authUser.user_metadata.role as UserRole;
+      // 3. Check if auth user has role field (new Supabase setup)
+      else if ((authUser as any).role) {
+        userRole = (authUser as any).role as UserRole;
+        console.log('✅ Role from auth user:', userRole);
       }
       // 4. Fallback to email pattern detection
       else if (authUser.email) {
@@ -105,6 +117,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         else if (email.includes('accountant')) userRole = 'accountant';
         else if (email.includes('office')) userRole = 'office_staff';
         else if (email.includes('admin')) userRole = 'super_admin';
+        console.log('✅ Role from email pattern:', userRole);
       }
 
       const userWithRole: UserWithRole = {
@@ -132,6 +145,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.warn('Could not fetch custom permissions, using defaults:', permError);
       }
 
+      console.log('✅ Final User Profile:', {
+        email: userWithRole.email,
+        role: userWithRole.role,
+        permissionsCount: userWithRole.permissions?.length,
+        permissions: userWithRole.permissions?.slice(0, 5)
+      });
+
       return userWithRole;
     } catch (error) {
       console.error('Error in fetchUserProfile:', error);
@@ -154,17 +174,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     // Get initial session
     const getInitialSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session);
+      try {
+        console.log('AuthContext: Getting initial session...');
+        const { data: { session } } = await supabase.auth.getSession();
+        setSession(session);
 
-      if (session?.user) {
-        const userWithRole = await fetchUserProfile(session.user);
-        setUser(userWithRole);
-      } else {
+        if (session?.user) {
+          console.log('AuthContext: User found, fetching profile...', session.user.email);
+          const userWithRole = await fetchUserProfile(session.user);
+          console.log('AuthContext: User profile loaded:', { role: userWithRole?.role, email: userWithRole?.email });
+          setUser(userWithRole);
+        } else {
+          console.log('AuthContext: No session found');
+          setUser(null);
+        }
+      } catch (error) {
+        console.error('AuthContext: Error getting initial session:', error);
         setUser(null);
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     };
 
     getInitialSession();
@@ -172,16 +201,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('AuthContext: Auth state changed:', event, session?.user?.email);
         setSession(session);
 
-        if (session?.user) {
-          const userWithRole = await fetchUserProfile(session.user);
-          setUser(userWithRole);
-        } else {
+        try {
+          if (session?.user) {
+            const userWithRole = await fetchUserProfile(session.user);
+            console.log('AuthContext: Profile updated:', { role: userWithRole?.role, email: userWithRole?.email });
+            setUser(userWithRole);
+          } else {
+            setUser(null);
+          }
+        } catch (error) {
+          console.error('AuthContext: Error in auth state change:', error);
           setUser(null);
+        } finally {
+          setLoading(false);
         }
-
-        setLoading(false);
       }
     );
 

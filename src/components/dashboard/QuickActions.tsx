@@ -78,13 +78,7 @@ const QuickActions: React.FC<QuickActionsProps> = ({ onAction }) => {
       </div>
 
       {/* Additional info card */}
-      <div className="mt-6 p-4 bg-gradient-to-r from-gray-50 to-blue-50 rounded-xl border border-blue-100">
-        <h4 className="font-semibold text-gray-800 mb-2">💡 Quick Tip</h4>
-        <p className="text-sm text-gray-600">
-          Use keyboard shortcuts to access these actions faster: 
-          <span className="font-mono bg-white px-2 py-1 rounded ml-2">Ctrl + N</span> for new lead
-        </p>
-      </div>
+      
     </div>
   );
 };

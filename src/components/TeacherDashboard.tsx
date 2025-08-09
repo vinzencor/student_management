@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Users, BookOpen, Calendar, TrendingUp, Eye, FileText, BarChart3 } from 'lucide-react';
+import { Users, BookOpen, Calendar, TrendingUp, Eye, FileText, BarChart3, AlertCircle } from 'lucide-react';
 import { DataService } from '../services/dataService';
 import { useAuth } from '../contexts/AuthContext';
+import { getFilteredNavigation } from '../utils/roleUtils';
 import type { Student, Attendance, Performance, Fee } from '../lib/supabase';
 
 const TeacherDashboard: React.FC = () => {
@@ -88,8 +89,27 @@ const TeacherDashboard: React.FC = () => {
     );
   }
 
+  const availableNavigation = getFilteredNavigation(user);
+
   return (
     <div className="space-y-6 pt-6">
+      {/* Debug Info - Remove in production */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center space-x-2 mb-2">
+            <AlertCircle className="w-5 h-5 text-blue-600" />
+            <h3 className="font-semibold text-blue-800">Teacher Debug Info</h3>
+          </div>
+          <div className="text-sm text-blue-700 space-y-1">
+            <p><strong>User Role:</strong> {user?.role || 'undefined'}</p>
+            <p><strong>User Email:</strong> {user?.email || 'undefined'}</p>
+            <p><strong>Available Navigation:</strong> {availableNavigation.join(', ')}</p>
+            <p><strong>Permissions Count:</strong> {user?.permissions?.length || 0}</p>
+            <p><strong>Sample Permissions:</strong> {user?.permissions?.slice(0, 5).join(', ') || 'none'}</p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>

@@ -381,6 +381,49 @@ export class DataService {
     return data || [];
   }
 
+  // Transactions Management
+  static async getTransactions(): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .order('date', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  }
+
+  static async addTransaction(transaction: any): Promise<any> {
+    const { data, error } = await supabase
+      .from('transactions')
+      .insert([transaction])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  static async updateTransaction(id: string, updates: any): Promise<any> {
+    const { data, error } = await supabase
+      .from('transactions')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  static async deleteTransaction(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+  }
+
   // Performance
   static async getPerformance(filters?: { student_id?: string; class_id?: string }) {
     let query = supabase
@@ -535,6 +578,81 @@ export class DataService {
 
     if (error) throw error
     return data
+  }
+
+  static async createStaffWithAuth(staff: Omit<Staff, 'id' | 'created_at' | 'updated_at'>, password: string) {
+    try {
+      // Try using the simple SQL function first (more reliable)
+      const { data: functionData, error: functionError } = await supabase
+        .rpc('create_staff_with_auth_simple', {
+          p_email: staff.email,
+          p_password: password,
+          p_first_name: staff.first_name,
+          p_last_name: staff.last_name,
+          p_role: staff.role,
+          p_phone: staff.phone || '+1234567890',
+          p_qualification: staff.qualification || 'Not specified',
+          p_experience_years: staff.experience_years || 0,
+          p_salary: staff.salary,
+          p_subjects: staff.subjects
+        });
+
+      if (functionError) {
+        console.warn('SQL function failed, trying admin API:', functionError);
+
+        // Fallback to admin API
+        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+          email: staff.email,
+          password: password,
+          email_confirm: true,
+          user_metadata: {
+            first_name: staff.first_name,
+            last_name: staff.last_name,
+            role: staff.role
+          }
+        });
+
+        if (authError) {
+          // If both methods fail, create staff record only
+          console.warn('Both auth methods failed, creating staff record only:', authError);
+          return await this.createStaff(staff);
+        }
+
+        // Create staff record with the auth user ID
+        const staffWithId = {
+          ...staff,
+          id: authData.user.id
+        };
+
+        const { data, error } = await supabase
+          .from('staff')
+          .insert(staffWithId)
+          .select()
+          .single();
+
+        if (error) throw error;
+        return data;
+      }
+
+      // If SQL function succeeded, get the created staff record
+      const result = functionData;
+      if (!result.success) {
+        throw new Error(result.message);
+      }
+
+      // Fetch the created staff record
+      const { data: staffRecord, error: staffError } = await supabase
+        .from('staff')
+        .select('*')
+        .eq('id', result.user_id)
+        .single();
+
+      if (staffError) throw staffError;
+      return staffRecord;
+    } catch (error) {
+      console.error('Error creating staff with auth:', error);
+      throw error;
+    }
   }
 
   static async updateStaff(id: string, updates: Partial<Staff>) {

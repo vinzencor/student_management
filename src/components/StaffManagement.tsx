@@ -4,6 +4,7 @@ import { DataService } from '../services/dataService';
 import { useAuth } from '../contexts/AuthContext';
 import { hasPermission, getRoleDisplayName } from '../utils/roleUtils';
 import type { Staff } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import AddStaffModal from './modals/AddStaffModal';
 import EditStaffModal from './modals/EditStaffModal';
 
@@ -38,13 +39,15 @@ const StaffManagement: React.FC = () => {
     }
   };
 
-  const handleAddStaff = async (staffData: Omit<Staff, 'id' | 'created_at' | 'updated_at'>) => {
+  const handleAddStaff = async (staffData: Omit<Staff, 'id' | 'created_at' | 'updated_at'>, password: string) => {
     try {
-      await DataService.createStaff(staffData);
+      await DataService.createStaffWithAuth(staffData, password);
       setShowAddModal(false);
       fetchStaff();
+      alert(`Staff member ${staffData.first_name} ${staffData.last_name} created successfully!\nEmail: ${staffData.email}\nPassword: ${password}`);
     } catch (error) {
       console.error('Error adding staff:', error);
+      alert('Failed to create staff member. Please try again.');
     }
   };
 

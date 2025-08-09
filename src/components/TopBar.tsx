@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bell, Search, Menu, User, Settings, ChevronDown, LogOut } from 'lucide-react';
+import { Bell, Search, Menu, User, Settings, ChevronDown, LogOut, Shield } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 interface TopBarProps {
@@ -26,6 +26,15 @@ const TopBar: React.FC<TopBarProps> = ({ setSidebarOpen }) => {
           >
             <Menu className="w-6 h-6 text-secondary-600" />
           </button>
+
+          {/* Debug Role Indicator - Remove in production */}
+          {process.env.NODE_ENV === 'development' && user && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-1">
+              <span className="text-xs font-medium text-blue-800">
+                Role: {user.role || 'undefined'} | Email: {user.email}
+              </span>
+            </div>
+          )}
 
           <div className="relative hidden md:block">
             <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-secondary-400" />
@@ -109,7 +118,12 @@ const TopBar: React.FC<TopBarProps> = ({ setSidebarOpen }) => {
                 <p className="font-semibold text-secondary-700 text-sm">
                   {user?.user_metadata?.first_name || 'User'} {user?.user_metadata?.last_name || ''}
                 </p>
-                <p className="text-xs text-secondary-500">Administrator</p>
+                <div className="flex items-center space-x-1 mt-1">
+                  <Shield className="w-3 h-3 text-primary-500" />
+                  <p className="text-xs text-primary-600 capitalize font-medium">
+                    {user?.role?.replace('_', ' ') || 'User'}
+                  </p>
+                </div>
               </div>
               <ChevronDown className="w-4 h-4 text-secondary-500 group-hover:text-secondary-600" />
             </button>
@@ -125,7 +139,17 @@ const TopBar: React.FC<TopBarProps> = ({ setSidebarOpen }) => {
                       <p className="font-semibold text-secondary-800">
                         {user?.user_metadata?.first_name || 'User'} {user?.user_metadata?.last_name || ''}
                       </p>
-                      <p className="text-sm text-secondary-600">Administrator</p>
+                      <div className="flex items-center space-x-1 mt-1">
+                        <div className={`w-2 h-2 rounded-full ${
+                          user?.role === 'super_admin' ? 'bg-red-500' :
+                          user?.role === 'accountant' ? 'bg-green-500' :
+                          user?.role === 'teacher' ? 'bg-blue-500' :
+                          'bg-yellow-500'
+                        }`}></div>
+                        <p className="text-sm text-secondary-600 capitalize">
+                          {user?.role?.replace('_', ' ') || 'User'}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>

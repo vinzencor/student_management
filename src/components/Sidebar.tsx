@@ -11,7 +11,6 @@ import {
   UserCog
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { canAccessNavItem } from '../utils/roleUtils';
 
 interface SidebarProps {
   activeView: string;
@@ -39,8 +38,54 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, sidebarOpe
     { id: 'settings', label: 'Settings', icon: Settings, badge: null },
   ];
 
-  // Filter menu items based on user role
-  const menuItems = allMenuItems.filter(item => canAccessNavItem(user, item.id));
+  // Role-based navigation - exactly as requested
+  const getMenuItems = () => {
+    if (!user) return [];
+
+    const userRole = user.role || '';
+    const userEmail = user.email || '';
+
+    // 👨‍🏫 TEACHER ACCESS - Only student-related features
+    if (userRole === 'teacher' || userEmail.includes('teacher')) {
+      return allMenuItems.filter(item =>
+        ['students', 'batches', 'courses', 'schedule', 'attendance', 'reports'].includes(item.id)
+      );
+    }
+
+    // 💰 ACCOUNTANT ACCESS - Financial and staff management
+    if (userRole === 'accountant' || userEmail.includes('accountant')) {
+      return allMenuItems.filter(item =>
+        ['dashboard', 'staff', 'leads', 'fees', 'accounts', 'receipts', 'reports'].includes(item.id)
+      );
+    }
+
+    // 👑 SUPER ADMIN ACCESS - Everything including staff management
+    if (userRole === 'super_admin' || userEmail.includes('admin')) {
+      return allMenuItems; // Full access to all features
+    }
+
+    // 🏢 OFFICE STAFF ACCESS - Limited operations
+    if (userRole === 'office_staff' || userEmail.includes('office')) {
+      return allMenuItems.filter(item =>
+        ['dashboard', 'students', 'batches', 'leads', 'attendance', 'reports'].includes(item.id)
+      );
+    }
+
+    // Default fallback - minimal access
+    return allMenuItems.filter(item => ['dashboard'].includes(item.id));
+  };
+
+  const menuItems = getMenuItems();
+
+  // Debug logging for troubleshooting
+  console.log('🔍 Sidebar Debug:', {
+    userEmail: user?.email,
+    userRole: user?.role,
+    userMetadata: user?.user_metadata,
+    menuItemsCount: menuItems.length,
+    menuItemIds: menuItems.map(m => m.id),
+    allMenuItemsCount: allMenuItems.length
+  });
 
   const handleMenuClick = (viewId: string) => {
     setActiveView(viewId);
@@ -82,18 +127,51 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, sidebarOpe
           </button>
         </div>
 
+        {/* User Role Indicator */}
+        {user && (
+          <div className="mt-4 px-4">
+            <div className="bg-gradient-to-r from-primary-50 to-primary-100 border border-primary-200 rounded-xl p-3">
+              <div className="flex items-center space-x-2">
+                <div className={`w-2 h-2 rounded-full ${
+                  user.role === 'super_admin' ? 'bg-red-500' :
+                  user.role === 'accountant' ? 'bg-green-500' :
+                  user.role === 'teacher' ? 'bg-blue-500' :
+                  'bg-yellow-500'
+                }`}></div>
+                <div>
+                  <p className="text-xs font-medium text-primary-700">
+                    {user.user_metadata?.first_name || 'User'}
+                  </p>
+                  <p className="text-xs text-primary-600 capitalize">
+                    {user.role?.replace('_', ' ') || 'User'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Navigation */}
         <nav className="flex-1 mt-6 px-4">
           <div className="space-y-1">
-            {menuItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeView === item.id;
+            {!user ? (
+              // Loading state
+              <div className="space-y-2">
+                {[1, 2, 3, 4, 5].map(i => (
+                  <div key={i} className="h-10 bg-secondary-200 rounded-lg animate-pulse"></div>
+                ))}
+              </div>
+            ) : (
+              // Menu items
+              menuItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeView === item.id;
 
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => handleMenuClick(item.id)}
-                  className={`
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => handleMenuClick(item.id)}
+                    className={`
                     w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left transition-all duration-200 group
                     ${isActive
                       ? 'bg-gradient-to-r from-primary-50 to-primary-100 text-primary-700 shadow-soft border border-primary-200'
@@ -117,7 +195,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, sidebarOpe
                   )}
                 </button>
               );
-            })}
+            }))
+            }
           </div>
         </nav>
       </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, GraduationCap, Mail, Lock, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, GraduationCap, Mail, Lock, AlertCircle, Shield, User, DollarSign, UserCog } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const Login: React.FC = () => {
@@ -11,8 +11,59 @@ const Login: React.FC = () => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [showDemoLogin, setShowDemoLogin] = useState(true);
 
   const { signIn, signUp } = useAuth();
+
+  // Demo accounts for easy role testing
+  const demoAccounts = [
+    {
+      role: 'super_admin',
+      email: 'admin@educare.com',
+      name: 'Super Admin',
+      icon: Shield,
+      color: 'from-red-500 to-red-600',
+      description: 'Full access to all features'
+    },
+    {
+      role: 'accountant',
+      email: 'accountant@educare.com',
+      name: 'Accountant',
+      icon: DollarSign,
+      color: 'from-green-500 to-green-600',
+      description: 'Staff, leads, accounts, fees, receipts, reports'
+    },
+    {
+      role: 'teacher',
+      email: 'teacher@educare.com',
+      name: 'Teacher',
+      icon: User,
+      color: 'from-blue-500 to-blue-600',
+      description: 'Students, attendance, courses, schedule'
+    },
+    {
+      role: 'office_staff',
+      email: 'office@educare.com',
+      name: 'Office Staff',
+      icon: UserCog,
+      color: 'from-yellow-500 to-yellow-600',
+      description: 'Students, leads, basic operations'
+    }
+  ];
+
+  const handleDemoLogin = async (demoAccount: typeof demoAccounts[0]) => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const { error } = await signIn(demoAccount.email, '123456');
+      if (error) throw error;
+    } catch (error: any) {
+      setError(error.message || 'Demo login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,6 +111,31 @@ const Login: React.FC = () => {
               {isSignUp ? 'Set up your admin account' : 'Sign in to your account'}
             </p>
           </div>
+
+          {/* Demo Login Quick Access */}
+          {/* <div className="mb-6 p-4 bg-primary-50 border border-primary-200 rounded-xl">
+            <h3 className="text-sm font-semibold text-primary-800 mb-3">Quick Demo Access</h3>
+            <div className="grid grid-cols-2 gap-2">
+              {demoAccounts.map((account) => {
+                const Icon = account.icon;
+                return (
+                  <button
+                    key={account.role}
+                    onClick={() => handleDemoLogin(account)}
+                    disabled={loading}
+                    className="p-2 rounded-lg border border-primary-200 hover:bg-primary-100 transition-colors disabled:opacity-50 text-left"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <div className={`w-6 h-6 bg-gradient-to-r ${account.color} rounded flex items-center justify-center`}>
+                        <Icon className="w-3 h-3 text-white" />
+                      </div>
+                      <span className="text-xs font-medium text-primary-700">{account.name}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div> */}
 
           {error && (
             <div className="mb-4 p-4 bg-danger-50 border border-danger-200 rounded-xl flex items-center space-x-3">
@@ -168,7 +244,7 @@ const Login: React.FC = () => {
         </div>
 
         {/* Demo Access */}
-        <div className="mt-6 p-4 bg-secondary-50 rounded-xl border border-secondary-200">
+        {/* <div className="mt-6 p-4 bg-secondary-50 rounded-xl border border-secondary-200">
           <h3 className="font-semibold text-secondary-800 mb-3">Quick Demo Access</h3>
           <button
             onClick={() => {
@@ -184,7 +260,7 @@ const Login: React.FC = () => {
             <p>Password: admin123</p>
             <p className="text-warning-600 font-medium">Note: Using demo mode due to Supabase auth configuration</p>
           </div>
-        </div>
+        </div> */}
       </div>
     </div>
   );

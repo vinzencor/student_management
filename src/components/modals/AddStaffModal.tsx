@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { X, User, Mail, Phone, Calendar, DollarSign, GraduationCap, Briefcase } from 'lucide-react';
+import { X, User, Mail, Phone, Calendar, DollarSign, GraduationCap, Briefcase, Lock, Eye, EyeOff } from 'lucide-react';
 import type { Staff } from '../../lib/supabase';
 
 interface AddStaffModalProps {
   onClose: () => void;
-  onSubmit: (staff: Omit<Staff, 'id' | 'created_at' | 'updated_at'>) => void;
+  onSubmit: (staff: Omit<Staff, 'id' | 'created_at' | 'updated_at'>, password: string) => void;
 }
 
 const AddStaffModal: React.FC<AddStaffModalProps> = ({ onClose, onSubmit }) => {
@@ -19,11 +19,15 @@ const AddStaffModal: React.FC<AddStaffModalProps> = ({ onClose, onSubmit }) => {
     experience_years: 0,
     salary: '',
     hire_date: new Date().toISOString().split('T')[0],
-    status: 'active' as Staff['status']
+    status: 'active' as Staff['status'],
+    password: '',
+    confirmPassword: ''
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const subjectOptions = [
     'Mathematics', 'English', 'Science', 'Physics', 'Chemistry', 'Biology',
@@ -78,6 +82,19 @@ const AddStaffModal: React.FC<AddStaffModalProps> = ({ onClose, onSubmit }) => {
       newErrors.subjects = 'Teachers must have at least one subject';
     }
 
+    // Password validation
+    if (!formData.password.trim()) {
+      newErrors.password = 'Password is required';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters long';
+    }
+
+    if (!formData.confirmPassword.trim()) {
+      newErrors.confirmPassword = 'Please confirm your password';
+    } else if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -103,7 +120,7 @@ const AddStaffModal: React.FC<AddStaffModalProps> = ({ onClose, onSubmit }) => {
         status: formData.status
       };
 
-      await onSubmit(staffData);
+      await onSubmit(staffData, formData.password);
     } catch (error) {
       console.error('Error creating staff:', error);
     } finally {
@@ -210,6 +227,67 @@ const AddStaffModal: React.FC<AddStaffModalProps> = ({ onClose, onSubmit }) => {
                 />
                 {errors.phone && (
                   <p className="text-danger-600 text-sm mt-1">{errors.phone}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Password Fields */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-secondary-700 mb-2">
+                  <Lock className="w-4 h-4 inline mr-1" />
+                  Password *
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-2.5 pr-12 border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors ${
+                      errors.password ? 'border-danger-300' : 'border-secondary-300'
+                    }`}
+                    placeholder="Enter password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-secondary-500 hover:text-secondary-700"
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+                {errors.password && (
+                  <p className="text-danger-600 text-sm mt-1">{errors.password}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-secondary-700 mb-2">
+                  <Lock className="w-4 h-4 inline mr-1" />
+                  Confirm Password *
+                </label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-2.5 pr-12 border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors ${
+                      errors.confirmPassword ? 'border-danger-300' : 'border-secondary-300'
+                    }`}
+                    placeholder="Confirm password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-secondary-500 hover:text-secondary-700"
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+                {errors.confirmPassword && (
+                  <p className="text-danger-600 text-sm mt-1">{errors.confirmPassword}</p>
                 )}
               </div>
             </div>
