@@ -104,8 +104,8 @@ const AddFeePaymentModal: React.FC<AddFeePaymentModalProps> = ({
           student_id: formData.student_id,
           amount: formData.fee_amount,
           paid_amount: formData.payment_amount,
-          status: formData.payment_amount >= formData.fee_amount ? 'paid' : 
-                  formData.payment_amount > 0 ? 'partial' : 'unpaid',
+          status: formData.payment_amount >= formData.fee_amount ? 'paid' :
+                  formData.payment_amount > 0 ? 'partial' : 'pending',
           due_date: formData.due_date,
           paid_date: formData.payment_amount > 0 ? formData.payment_date : null,
           payment_method: formData.payment_amount > 0 ? formData.payment_method : null,

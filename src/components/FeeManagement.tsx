@@ -114,10 +114,18 @@ const FeeManagement: React.FC = () => {
         }
       });
 
-      // Calculate remaining amounts and status - only include students with actual fee records
+      // Calculate remaining amounts and status - show students with fee records OR enrolled courses
       const allFees = Array.from(studentFeeMap.values())
-        .filter(studentFee => studentFee.feeRecords.length > 0) // Only show students with fee records
+        .filter(studentFee =>
+          studentFee.feeRecords.length > 0 || // Has fee records
+          studentFee.courses.length > 0       // OR has enrolled courses
+        )
         .map(studentFee => {
+          // If no fee records but has courses, calculate expected fees
+          if (studentFee.feeRecords.length === 0 && studentFee.courses.length > 0) {
+            studentFee.totalAmount = studentFee.courses.reduce((sum, course) => sum + course.price, 0);
+            studentFee.totalPaid = 0;
+          }
           studentFee.totalRemaining = Math.max(0, studentFee.totalAmount - studentFee.totalPaid);
 
           // Determine overall status
@@ -126,7 +134,7 @@ const FeeManagement: React.FC = () => {
           } else if (studentFee.totalRemaining <= 0 && studentFee.totalPaid > 0) {
             studentFee.status = 'paid';
           } else {
-            studentFee.status = 'unpaid';
+            studentFee.status = 'pending';
           }
 
         // Get the earliest due date from fee records
@@ -254,19 +262,111 @@ const FeeManagement: React.FC = () => {
 
     try {
       setLoading(true);
-      const newPaidAmount = (payingFee.paid_amount || 0) + paymentAmount;
-      const newStatus = newPaidAmount >= payingFee.amount ? 'paid' : 'partial';
 
-      const { error } = await supabase
-        .from('fees')
-        .update({
-          paid_amount: newPaidAmount,
-          status: newStatus,
-          paid_date: newStatus === 'paid' ? new Date().toISOString() : null
-        })
-        .eq('id', payingFee.id);
+      // Check if this is an aggregated record (ID starts with "student-")
+      if (payingFee.id.startsWith('student-')) {
+        // For aggregated records, we need to distribute the payment across individual fee records
+        const studentId = payingFee.student_id;
 
-      if (error) throw error;
+        // Get all pending/partial fee records for this student
+        const { data: studentFeeRecords, error: fetchError } = await supabase
+          .from('fees')
+          .select('*')
+          .eq('student_id', studentId)
+          .in('status', ['pending', 'partial'])
+          .order('due_date');
+
+        if (fetchError) throw fetchError;
+
+        if (!studentFeeRecords || studentFeeRecords.length === 0) {
+          // If no fee records exist, create them based on enrolled courses
+          const studentCourses = payingFee.courses || [];
+
+          if (studentCourses.length === 0) {
+            throw new Error('No courses found for this student. Please add courses first.');
+          }
+
+          // Create fee records for each enrolled course
+          const feeRecordsToCreate = studentCourses.map(course => ({
+            student_id: studentId,
+            amount: course.price,
+            paid_amount: 0,
+            status: 'pending',
+            due_date: new Date().toISOString().split('T')[0],
+            fee_type: 'tuition',
+            description: `Course fee for ${course.name}`,
+            created_at: new Date().toISOString()
+          }));
+
+          const { data: createdFeeRecords, error: createError } = await supabase
+            .from('fees')
+            .insert(feeRecordsToCreate)
+            .select();
+
+          if (createError) throw createError;
+
+          // Use the newly created fee records for payment processing
+          studentFeeRecords = createdFeeRecords;
+        }
+
+        // Distribute payment across fee records
+        let remainingPayment = paymentAmount;
+
+        for (const feeRecord of studentFeeRecords) {
+          if (remainingPayment <= 0) break;
+
+          const feeRemaining = feeRecord.amount - (feeRecord.paid_amount || 0);
+          const paymentForThisFee = Math.min(remainingPayment, feeRemaining);
+
+          const newPaidAmount = (feeRecord.paid_amount || 0) + paymentForThisFee;
+          const newStatus = newPaidAmount >= feeRecord.amount ? 'paid' : 'partial';
+
+          const { error: updateError } = await supabase
+            .from('fees')
+            .update({
+              paid_amount: newPaidAmount,
+              status: newStatus,
+              paid_date: newStatus === 'paid' ? new Date().toISOString() : feeRecord.paid_date
+            })
+            .eq('id', feeRecord.id);
+
+          if (updateError) throw updateError;
+
+          remainingPayment -= paymentForThisFee;
+        }
+
+        // Create a receipt record for the payment
+        const receiptNumber = `RCP-${Date.now()}`;
+        await supabase
+          .from('fee_receipts')
+          .insert([{
+            receipt_number: receiptNumber,
+            student_id: studentId,
+            student_name: `${payingFee.student.first_name} ${payingFee.student.last_name}`,
+            course_name: 'Multiple Courses',
+            amount_paid: paymentAmount,
+            payment_date: new Date().toISOString().split('T')[0],
+            payment_method: 'cash',
+            description: `Payment for multiple courses`,
+            created_at: new Date().toISOString()
+          }]);
+
+      } else {
+        // Handle individual fee record payment (original logic)
+        const newPaidAmount = (payingFee.paid_amount || 0) + paymentAmount;
+        const newStatus = newPaidAmount >= payingFee.amount ? 'paid' : 'partial';
+
+        const { error } = await supabase
+          .from('fees')
+          .update({
+            paid_amount: newPaidAmount,
+            status: newStatus,
+            paid_date: newStatus === 'paid' ? new Date().toISOString() : null
+          })
+          .eq('id', payingFee.id);
+
+        if (error) throw error;
+      }
 
       setPayingFee(null);
       setPaymentAmount(0);
@@ -274,7 +374,7 @@ const FeeManagement: React.FC = () => {
       alert(`Payment of ₹${paymentAmount.toLocaleString()} recorded successfully!`);
     } catch (error) {
       console.error('Error processing payment:', error);
-      alert('Failed to process payment');
+      alert('Failed to process payment. Please try again.');
     } finally {
       setLoading(false);
     }
