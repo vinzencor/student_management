@@ -255,7 +255,9 @@ const ExternalFeeManagement: React.FC = () => {
 
       if (linkError) throw linkError;
 
-      const paymentUrl = `${window.location.origin}/external-payment/${token}`;
+      // Use the correct domain for payment URL
+      const baseUrl = window.location.origin;
+      const paymentUrl = `${baseUrl}/external-payment/${token}`;
 
       // Copy to clipboard
       navigator.clipboard.writeText(paymentUrl).then(() => {
@@ -282,6 +284,7 @@ const ExternalFeeManagement: React.FC = () => {
   };
 
   const getPaymentUrl = (token: string) => {
+    // Use the current domain (works for both localhost and Vercel)
     return `${window.location.origin}/external-payment/${token}`;
   };
 
