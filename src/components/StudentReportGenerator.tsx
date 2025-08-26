@@ -295,7 +295,7 @@ const StudentReportGenerator: React.FC<StudentReportGeneratorProps> = ({ student
                   <div className="flex justify-between">
                     <span className="text-secondary-600">Pending:</span>
                     <span className="text-warning-600 font-medium">
-                      ${reportData.fees?.filter((f: Fee) => f.status === 'pending').reduce((sum: number, f: Fee) => sum + f.amount, 0).toFixed(2) || '0.00'}
+                      QAR {reportData.fees?.filter((f: Fee) => f.status === 'pending').reduce((sum: number, f: Fee) => sum + f.amount, 0).toFixed(2) || '0.00'}
                     </span>
                   </div>
                 </div>

@@ -38,16 +38,16 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
   const [createParent, setCreateParent] = useState(true);
   const [courses, setCourses] = useState<any[]>([]);
   const [selectedCourses, setSelectedCourses] = useState<any[]>([]);
-
-  const subjects = [
-    'Mathematics', 'Physics', 'Chemistry', 'Biology', 'English',
-    'History', 'Geography', 'Computer Science', 'Economics', 'Art',
-    'Music', 'Physical Education', 'Literature', 'Psychology', 'Philosophy'
-  ];
+  const [subjects, setSubjects] = useState<any[]>([]);
+  const [batches, setBatches] = useState<any[]>([]);
+  const [subjectsLoading, setSubjectsLoading] = useState(false);
+  const [batchesLoading, setBatchesLoading] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       loadCourses();
+      loadSubjects();
+      loadBatches();
     }
   }, [isOpen]);
 
@@ -62,6 +62,40 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
       setCourses(data || []);
     } catch (error) {
       console.error('Error loading courses:', error);
+    }
+  };
+
+  const loadSubjects = async () => {
+    try {
+      setSubjectsLoading(true);
+      const { data, error } = await supabase
+        .from('active_subjects')
+        .select('*')
+        .order('category', { ascending: true })
+        .order('name', { ascending: true });
+      if (error) throw error;
+      setSubjects(data || []);
+    } catch (error) {
+      console.error('Error loading subjects:', error);
+    } finally {
+      setSubjectsLoading(false);
+    }
+  };
+
+  const loadBatches = async () => {
+    try {
+      setBatchesLoading(true);
+      const { data, error } = await supabase
+        .from('batch_details')
+        .select('id, name, academic_year, status')
+        .eq('status', 'active')
+        .order('academic_year', { ascending: false });
+      if (error) throw error;
+      setBatches(data || []);
+    } catch (error) {
+      console.error('Error loading batches:', error);
+    } finally {
+      setBatchesLoading(false);
     }
   };
 
@@ -134,7 +168,7 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
       const createdStudent = await DataService.createStudent(studentData);
 
       // Don't create fee records automatically - let user set them in Fee Receipts
-      console.log(`Student created with ${selectedCourses.length} courses. Total fees: ₹${getTotalFees()}`);
+      console.log(`Student created with ${selectedCourses.length} courses. Total fees: QAR ${getTotalFees()}`);
 
       // Create student-course enrollment records
       for (const course of selectedCourses) {
@@ -290,7 +324,7 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-secondary-700 mb-2">
-                      Grade Level *
+                      Batch/Grade Level *
                     </label>
                     <select
                       name="grade_level"
@@ -298,12 +332,22 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
                       onChange={handleInputChange}
                       className="w-full px-4 py-3 border border-secondary-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
                       required
+                      disabled={batchesLoading}
                     >
-                      <option value="">Select Grade</option>
-                      {Array.from({ length: 12 }, (_, i) => i + 1).map(grade => (
-                        <option key={grade} value={`Grade ${grade}`}>Grade {grade}</option>
+                      <option value="">
+                        {batchesLoading ? 'Loading batches...' : 'Select Batch/Grade'}
+                      </option>
+                      {batches.map(batch => (
+                        <option key={batch.id} value={batch.name}>
+                          {batch.name} ({batch.academic_year})
+                        </option>
                       ))}
                     </select>
+                    {batches.length === 0 && !batchesLoading && (
+                      <p className="text-xs text-secondary-500 mt-1">
+                        No active batches found. Please create batches in Batch Management.
+                      </p>
+                    )}
                   </div>
                   
                   <div>
@@ -374,7 +418,7 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
                                 <p className="font-medium text-secondary-800">{course.name}</p>
                                 <p className="text-xs text-secondary-600">{course.description}</p>
                               </div>
-                              <span className="font-semibold text-primary-600">₹{course.price.toLocaleString()}</span>
+                              <span className="font-semibold text-primary-600">QAR {course.price.toLocaleString()}</span>
                             </div>
                           </label>
                         </div>
@@ -390,13 +434,13 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
                         {selectedCourses.map((course) => (
                           <div key={course.id} className="flex justify-between items-center text-sm">
                             <span className="text-primary-700">{course.name}</span>
-                            <span className="font-semibold text-primary-800">₹{course.price.toLocaleString()}</span>
+                            <span className="font-semibold text-primary-800">QAR {course.price.toLocaleString()}</span>
                           </div>
                         ))}
                         <div className="border-t border-primary-300 pt-2 mt-2">
                           <div className="flex justify-between items-center font-bold text-primary-900">
                             <span>Total Course Fees:</span>
-                            <span>₹{getTotalFees().toLocaleString()}</span>
+                            <span>QAR {getTotalFees().toLocaleString()}</span>
                           </div>
                         </div>
                       </div>
@@ -410,21 +454,29 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
 
                 <div>
                   <label className="block text-sm font-medium text-secondary-700 mb-2">
-                    Subjects
+                    Subjects {subjectsLoading && <span className="text-xs text-secondary-500">(Loading...)</span>}
                   </label>
                   <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border border-secondary-200 rounded-xl p-3">
                     {subjects.map(subject => (
-                      <label key={subject} className="flex items-center space-x-2 cursor-pointer">
+                      <label key={subject.id} className="flex items-center space-x-2 cursor-pointer">
                         <input
                           type="checkbox"
-                          checked={formData.subjects.includes(subject)}
-                          onChange={() => handleSubjectToggle(subject)}
+                          checked={formData.subjects.includes(subject.name)}
+                          onChange={() => handleSubjectToggle(subject.name)}
                           className="w-4 h-4 text-primary-600 border-secondary-300 rounded focus:ring-primary-500"
+                          disabled={subjectsLoading}
                         />
-                        <span className="text-sm text-secondary-700">{subject}</span>
+                        <span className="text-sm text-secondary-700" title={subject.description}>
+                          {subject.name}
+                        </span>
                       </label>
                     ))}
                   </div>
+                  {subjects.length === 0 && !subjectsLoading && (
+                    <p className="text-xs text-secondary-500 mt-1">
+                      No subjects found. Please run the subjects setup script.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

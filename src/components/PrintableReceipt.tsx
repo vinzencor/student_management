@@ -105,9 +105,9 @@ const PrintableReceipt: React.FC<PrintableReceiptProps> = ({
                         <div className="font-medium">{course?.name}</div>
                         <div className="text-sm text-secondary-600">{course?.description}</div>
                       </td>
-                      <td className="text-right px-4 py-3 font-medium">₹{courseFee.toLocaleString()}</td>
-                      <td className="text-right px-4 py-3 font-medium">₹{amountPaying.toLocaleString()}</td>
-                      <td className="text-right px-4 py-3 font-medium text-danger-600">₹{remaining.toLocaleString()}</td>
+                      <td className="text-right px-4 py-3 font-medium">QAR{courseFee.toLocaleString()}</td>
+                      <td className="text-right px-4 py-3 font-medium">QAR{amountPaying.toLocaleString()}</td>
+                      <td className="text-right px-4 py-3 font-medium text-danger-600">QAR{remaining.toLocaleString()}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -118,20 +118,20 @@ const PrintableReceipt: React.FC<PrintableReceiptProps> = ({
             <div className="border-t-2 border-secondary-800 pt-4">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-secondary-600">Amount Paying:</span>
-                <span className="font-medium">₹{amountPaying.toLocaleString()}</span>
+                <span className="font-medium">QAR {amountPaying.toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center mb-2">
                 <span className="text-secondary-600">Tax ({((receipt.tax_rate || 0) * 100).toFixed(1)}%):</span>
-                <span className="font-medium">₹{taxAmount.toLocaleString()}</span>
+                <span className="font-medium">QAR {taxAmount.toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center text-lg font-bold border-t pt-2">
                 <span>Total Amount:</span>
-                <span>₹{totalAmount.toLocaleString()}</span>
+                <span>QAR {totalAmount.toLocaleString()}</span>
               </div>
               {remaining > 0 && (
                 <div className="flex justify-between items-center mt-2 text-danger-600">
                   <span className="font-medium">Remaining Balance:</span>
-                  <span className="font-bold">₹{remaining.toLocaleString()}</span>
+                  <span className="font-bold">QAR {remaining.toLocaleString()}</span>
                 </div>
               )}
             </div>

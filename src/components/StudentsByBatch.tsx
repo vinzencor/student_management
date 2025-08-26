@@ -2,16 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Users, Calendar, GraduationCap } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-interface BatchPeriod {
-  label: string;
-  startMonth: number;
-  endMonth: number;
+interface BatchData {
+  id: string;
+  name: string;
+  academic_year: string;
+  start_date: string;
+  end_date: string;
+  course_name?: string;
+  current_students: number;
+  max_students: number;
   students: any[];
 }
 
 interface YearData {
   year: string;
-  batches: BatchPeriod[];
+  batches: BatchData[];
 }
 
 const StudentsByBatch: React.FC = () => {
@@ -24,88 +29,65 @@ const StudentsByBatch: React.FC = () => {
     loadStudentsByBatch();
   }, []);
 
-  const getBatchPeriods = (year: string): BatchPeriod[] => {
-    const yearNum = parseInt(year);
-    return [
-      {
-        label: `Aug ${year} - Feb ${yearNum + 1} (6 Months)`,
-        startMonth: 8, // August
-        endMonth: 2,   // February next year
-        students: []
-      },
-      {
-        label: `Aug ${year} - Aug ${yearNum + 1} (1 Year)`,
-        startMonth: 8,
-        endMonth: 8,
-        students: []
-      },
-      {
-        label: `Aug ${year} - Aug ${yearNum + 2} (2 Years)`,
-        startMonth: 8,
-        endMonth: 8,
-        students: []
-      },
-      {
-        label: `Aug ${year} - Aug ${yearNum + 3} (3 Years)`,
-        startMonth: 8,
-        endMonth: 8,
-        students: []
-      },
-      {
-        label: `Aug ${year} - Aug ${yearNum + 4} (4 Years)`,
-        startMonth: 8,
-        endMonth: 8,
-        students: []
-      }
-    ];
-  };
+
 
   const loadStudentsByBatch = async () => {
     try {
       setLoading(true);
-      
-      // Fetch all students with course and batch info
-      const { data: students, error } = await supabase
-        .from('students')
-        .select(`
-          *,
-          course:courses(name, price, description),
-          parent:parents(first_name, last_name, phone)
-        `)
+
+      // Fetch all batches with their students
+      const { data: batches, error: batchError } = await supabase
+        .from('batch_details')
+        .select('*')
         .eq('status', 'active')
-        .order('batch_start_date', { ascending: false });
+        .order('academic_year', { ascending: false });
 
-      if (error) throw error;
+      if (batchError) throw batchError;
 
-      // Organize students by year and batch
-      const years = ['2025', '2026', '2027', '2028'];
-      const organizedData: YearData[] = years.map(year => {
-        const batches = getBatchPeriods(year);
-        
-        // Filter students for each batch period
-        batches.forEach(batch => {
-          batch.students = (students || []).filter(student => {
-            if (!student.batch_start_date || !student.batch_duration) return false;
-            
-            const startDate = new Date(student.batch_start_date);
-            const startYear = startDate.getFullYear().toString();
-            
-            // Check if student's batch starts in this year and matches duration
-            if (startYear !== year) return false;
-            
-            const durationMatch = 
-              (student.batch_duration === '6_months' && batch.label.includes('6 Months')) ||
-              (student.batch_duration === '1_year' && batch.label.includes('1 Year')) ||
-              (student.batch_duration === '2_years' && batch.label.includes('2 Years')) ||
-              (student.batch_duration === '3_years' && batch.label.includes('3 Years')) ||
-              (student.batch_duration === '4_years' && batch.label.includes('4 Years'));
-            
-            return durationMatch;
-          });
-        });
+      // Fetch students for each batch
+      const batchesWithStudents = await Promise.all(
+        (batches || []).map(async (batch) => {
+          const { data: studentBatches, error: studentError } = await supabase
+            .from('student_batches')
+            .select(`
+              *,
+              student:students(
+                *,
+                course:courses(name, price, description),
+                parent:parents(first_name, last_name, phone)
+              )
+            `)
+            .eq('batch_id', batch.id)
+            .eq('status', 'active');
 
-        return { year, batches };
+          if (studentError) {
+            console.error('Error fetching students for batch:', batch.id, studentError);
+            return { ...batch, students: [] };
+          }
+
+          return {
+            ...batch,
+            students: (studentBatches || []).map(sb => sb.student).filter(Boolean)
+          };
+        })
+      );
+
+      // Group batches by academic year
+      const yearMap = new Map<string, BatchData[]>();
+
+      batchesWithStudents.forEach(batch => {
+        const year = batch.academic_year;
+        if (!yearMap.has(year)) {
+          yearMap.set(year, []);
+        }
+        yearMap.get(year)!.push(batch);
       });
+
+      // Convert to YearData array
+      const organizedData: YearData[] = Array.from(yearMap.entries()).map(([year, batches]) => ({
+        year,
+        batches: batches.sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime())
+      })).sort((a, b) => b.year.localeCompare(a.year));
 
       setYearData(organizedData);
     } catch (error) {
@@ -131,24 +113,7 @@ const StudentsByBatch: React.FC = () => {
     );
   };
 
-  const formatBatchDuration = (duration: string) => {
-    switch (duration) {
-      case '6_months': return '6 Months';
-      case '1_year': return '1 Year';
-      case '2_years': return '2 Years';
-      case '3_years': return '3 Years';
-      case '4_years': return '4 Years';
-      default: return duration;
-    }
-  };
 
-  const isCurrentBatch = (student: any) => {
-    if (!student.batch_start_date || !student.batch_end_date) return false;
-    const now = new Date();
-    const start = new Date(student.batch_start_date);
-    const end = new Date(student.batch_end_date);
-    return now >= start && now <= end;
-  };
 
   if (loading) {
     return (
@@ -206,9 +171,9 @@ const StudentsByBatch: React.FC = () => {
             {expandedYears.includes(yearInfo.year) && (
               <div className="border-t border-secondary-200">
                 {yearInfo.batches.map((batch, batchIndex) => {
-                  const batchKey = `${yearInfo.year}-${batchIndex}`;
+                  const batchKey = `${yearInfo.year}-${batch.id}`;
                   const hasStudents = batch.students.length > 0;
-                  
+
                   return (
                     <div key={batchKey} className="border-b border-secondary-100 last:border-b-0">
                       {/* Batch Header */}
@@ -228,9 +193,17 @@ const StudentsByBatch: React.FC = () => {
                             )
                           )}
                           <GraduationCap className="w-4 h-4 text-secondary-600" />
-                          <span className="font-medium text-secondary-700">{batch.label}</span>
+                          <div className="flex flex-col items-start">
+                            <span className="font-medium text-secondary-700">{batch.name}</span>
+                            {batch.course_name && (
+                              <span className="text-xs text-secondary-500">{batch.course_name}</span>
+                            )}
+                          </div>
                         </div>
                         <div className="flex items-center space-x-2">
+                          <span className="text-xs text-secondary-500">
+                            {new Date(batch.start_date).toLocaleDateString()} - {new Date(batch.end_date).toLocaleDateString()}
+                          </span>
                           <span className={`px-2 py-1 rounded-full text-xs ${
                             hasStudents ? 'bg-primary-100 text-primary-800' : 'bg-secondary-100 text-secondary-600'
                           }`}>
@@ -254,21 +227,15 @@ const StudentsByBatch: React.FC = () => {
                                       {student.course?.name} • Grade {student.grade_level}
                                     </div>
                                     <div className="text-xs text-secondary-500">
-                                      {formatBatchDuration(student.batch_duration)} • 
-                                      {new Date(student.batch_start_date).toLocaleDateString()} - 
-                                      {new Date(student.batch_end_date).toLocaleDateString()}
+                                      Enrolled: {new Date().toLocaleDateString()}
                                     </div>
                                   </div>
                                   <div className="text-right">
-                                    <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                      isCurrentBatch(student) 
-                                        ? 'bg-success-100 text-success-800' 
-                                        : 'bg-secondary-100 text-secondary-600'
-                                    }`}>
-                                      {isCurrentBatch(student) ? 'Active' : 'Inactive'}
+                                    <div className="px-2 py-1 rounded-full text-xs font-medium bg-success-100 text-success-800">
+                                      Active
                                     </div>
                                     <div className="text-sm text-secondary-600 mt-1">
-                                      ₹{student.course?.price?.toLocaleString() || '0'}
+                                      QAR{student.course?.price?.toLocaleString() || '0'}
                                     </div>
                                   </div>
                                 </div>

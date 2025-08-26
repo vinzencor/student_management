@@ -355,7 +355,7 @@ const ExpenseReports: React.FC = () => {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-red-700">Total Expenses</p>
-            <p className="text-3xl font-bold text-red-800">₹{totalExpenses.toLocaleString()}</p>
+            <p className="text-3xl font-bold text-red-800">QAR {totalExpenses.toLocaleString()}</p>
             <p className="text-sm text-red-600 mt-1">
               {transactions.length} transactions from {new Date(dateRange.startDate).toLocaleDateString()} to {new Date(dateRange.endDate).toLocaleDateString()}
             </p>
@@ -386,7 +386,7 @@ const ExpenseReports: React.FC = () => {
                   <div className="flex-1">
                     <div className="flex justify-between items-center mb-2">
                       <p className="font-semibold text-secondary-800">{category}</p>
-                      <span className="font-bold text-red-700">₹{categoryTotal.toLocaleString()}</span>
+                      <span className="font-bold text-red-700">QAR {categoryTotal.toLocaleString()}</span>
                     </div>
                     <div className="flex items-center space-x-3">
                       <div className="flex-1 bg-red-200 rounded-full h-2">
@@ -462,7 +462,7 @@ const ExpenseReports: React.FC = () => {
                     </td>
                     <td className="py-4 px-6">
                       <span className="font-semibold text-red-600">
-                        -₹{transaction.amount.toLocaleString()}
+                        -QAR {transaction.amount.toLocaleString()}
                       </span>
                     </td>
                     <td className="py-4 px-6 text-secondary-600">{transaction.payment_mode}</td>

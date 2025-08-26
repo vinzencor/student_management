@@ -94,7 +94,7 @@ const Receipts: React.FC = () => {
         await supabase.from('receipts').insert(receiptData);
       }
       await load();
-      alert(`Student admission completed! Receipt created with course fee ₹${coursePrice.toLocaleString()}. Ready for printing.`);
+      alert(`Student admission completed! Receipt created with course fee QAR ${coursePrice.toLocaleString()}. Ready for printing.`);
     } catch (error) {
       console.error('Error updating receipt:', error);
       alert('Admission completed but failed to update receipt.');
@@ -201,7 +201,7 @@ const Receipts: React.FC = () => {
                     <td className="py-2 pr-4">{lead.first_name} {lead.last_name}</td>
                     <td className="py-2 pr-4">{lead.email || '-'}</td>
                     <td className="py-2 pr-4">{receipt?.course?.name || '-'}</td>
-                    <td className="py-2 pr-4">{receipt ? `₹ ${receipt.total_amount.toLocaleString()}` : '-'}</td>
+                    <td className="py-2 pr-4">{receipt ? `QAR ${receipt.total_amount.toLocaleString()}` : '-'}</td>
                     <td className="py-2 pr-4">{receipt ? receipt.status : 'Pending Admission'}</td>
                     <td className="py-2 pr-4 space-x-2">
                       {receipt && receipt.student_id ? (
@@ -255,11 +255,11 @@ const Receipts: React.FC = () => {
             <div className="space-y-4">
               <div className="bg-secondary-50 p-4 rounded-lg">
                 <div className="text-sm text-secondary-600 mb-2">Course Information</div>
-                <div className="font-medium">Course Fee: ₹{(editing.course_fee || 0).toLocaleString()}</div>
+                <div className="font-medium">Course Fee: QAR{(editing.course_fee || 0).toLocaleString()}</div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-secondary-700 mb-1">Amount Paying (₹) *</label>
+                <label className="block text-sm font-medium text-secondary-700 mb-1">Amount Paying (QAR) *</label>
                 <input
                   type="number"
                   className="w-full border border-secondary-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
@@ -268,7 +268,7 @@ const Receipts: React.FC = () => {
                   placeholder="Enter amount being paid"
                 />
                 <div className="text-sm text-secondary-600 mt-1">
-                  Remaining: ₹{calcRemaining(editing.course_fee || 0, editing.amount_paying).toLocaleString()}
+                  Remaining: QAR {calcRemaining(editing.course_fee || 0, editing.amount_paying).toLocaleString()}
                 </div>
               </div>
 
@@ -283,7 +283,7 @@ const Receipts: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-secondary-700 mb-1">Total Amount (₹)</label>
+                <label className="block text-sm font-medium text-secondary-700 mb-1">Total Amount (QAR)</label>
                 <input
                   className="w-full border border-secondary-300 rounded-lg px-3 py-2 bg-secondary-50"
                   value={calcTotal(editing.amount_paying, editing.tax_rate)}

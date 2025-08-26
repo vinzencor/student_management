@@ -121,7 +121,7 @@ const CourseManagement: React.FC = () => {
               <tr className="text-left border-b border-secondary-200">
                 <th className="py-3 pr-4 font-medium text-secondary-700">Course Name</th>
                 <th className="py-3 pr-4 font-medium text-secondary-700">Description</th>
-                <th className="py-3 pr-4 font-medium text-secondary-700">Price (₹)</th>
+                <th className="py-3 pr-4 font-medium text-secondary-700">Price (QAR)</th>
                 <th className="py-3 pr-4 font-medium text-secondary-700">Duration</th>
                 <th className="py-3 pr-4 font-medium text-secondary-700">Status</th>
                 <th className="py-3 pr-4 font-medium text-secondary-700">Actions</th>
@@ -132,7 +132,7 @@ const CourseManagement: React.FC = () => {
                 <tr key={course.id} className="border-b border-secondary-100 hover:bg-secondary-50">
                   <td className="py-3 pr-4 font-medium">{course.name}</td>
                   <td className="py-3 pr-4 text-secondary-600">{course.description}</td>
-                  <td className="py-3 pr-4">₹ {course.price.toLocaleString()}</td>
+                  <td className="py-3 pr-4">QAR {course.price.toLocaleString()}</td>
                   <td className="py-3 pr-4">{course.duration_months} months</td>
                   <td className="py-3 pr-4">
                     <span className={`px-2 py-1 rounded-full text-xs ${
@@ -197,7 +197,7 @@ const CourseManagement: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-secondary-700 mb-1">Course Price (₹) *</label>
+                <label className="block text-sm font-medium text-secondary-700 mb-1">Course Price (QAR) *</label>
                 <input
                   type="number"
                   required

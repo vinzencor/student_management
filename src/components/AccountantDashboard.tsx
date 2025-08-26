@@ -152,7 +152,7 @@ const AccountantDashboard: React.FC = () => {
             </span>
           </div>
           <h3 className="text-2xl font-bold text-secondary-800">
-            ${moneyFlowData?.income?.toFixed(2) || '0.00'}
+            QAR {moneyFlowData?.income?.toFixed(2) || '0.00'}
           </h3>
           <p className="text-success-600 text-sm font-medium">Total Income</p>
         </div>
@@ -165,7 +165,7 @@ const AccountantDashboard: React.FC = () => {
             </span>
           </div>
           <h3 className="text-2xl font-bold text-secondary-800">
-            ${moneyFlowData?.expenses?.toFixed(2) || '0.00'}
+            QAR {moneyFlowData?.expenses?.toFixed(2) || '0.00'}
           </h3>
           <p className="text-danger-600 text-sm font-medium">Total Expenses</p>
         </div>
@@ -178,7 +178,7 @@ const AccountantDashboard: React.FC = () => {
             </span>
           </div>
           <h3 className={`text-2xl font-bold ${moneyFlowData?.netFlow >= 0 ? 'text-success-600' : 'text-danger-600'}`}>
-            ${moneyFlowData?.netFlow?.toFixed(2) || '0.00'}
+            QAR {moneyFlowData?.netFlow?.toFixed(2) || '0.00'}
           </h3>
           <p className="text-primary-600 text-sm font-medium">Net Cash Flow</p>
         </div>
@@ -191,7 +191,7 @@ const AccountantDashboard: React.FC = () => {
             </span>
           </div>
           <h3 className="text-2xl font-bold text-secondary-800">
-            ${moneyFlowData?.pending?.toFixed(2) || '0.00'}
+            QAR {moneyFlowData?.pending?.toFixed(2) || '0.00'}
           </h3>
           <p className="text-warning-600 text-sm font-medium">Pending Fees</p>
         </div>
@@ -300,7 +300,7 @@ const AccountantDashboard: React.FC = () => {
             <div className="flex items-center justify-between">
               <span className="text-sm text-secondary-600">Monthly Payroll</span>
               <span className="text-sm font-semibold text-secondary-800">
-                ${staff.reduce((sum, s) => sum + (s.salary || 0), 0).toFixed(2)}
+                QAR {staff.reduce((sum, s) => sum + (s.salary || 0), 0).toFixed(2)}
               </span>
             </div>
           </div>
@@ -337,7 +337,7 @@ const AccountantDashboard: React.FC = () => {
                   <p className={`text-sm font-semibold ${
                     transaction.type === 'income' ? 'text-success-600' : 'text-danger-600'
                   }`}>
-                    {transaction.type === 'income' ? '+' : '-'}${transaction.amount.toFixed(2)}
+                    {transaction.type === 'income' ? '+' : '-'}QAR {transaction.amount.toFixed(2)}
                   </p>
                 </div>
               </div>

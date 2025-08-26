@@ -141,6 +141,7 @@ const LeadPipeline: React.FC<LeadPipelineProps> = ({ onAddLead }) => {
 
         if (targetColumn === 'converted') {
           try {
+            // Create receipt draft
             const { data: existing } = await (await import('../../lib/supabase')).supabase
               .from('receipts')
               .select('id')
@@ -152,8 +153,26 @@ const LeadPipeline: React.FC<LeadPipelineProps> = ({ onAddLead }) => {
                 .from('receipts')
                 .insert({ lead_id: draggedItem, amount: 0, tax_rate: 0, total_amount: 0, status: 'draft' });
             }
+
+            // Generate external payment link
+            const { data: linkData, error: linkError } = await (await import('../../lib/supabase')).supabase
+              .rpc('create_payment_link_for_lead', {
+                p_lead_id: draggedItem,
+                p_course_name: null,
+                p_course_fee: null
+              });
+
+            if (linkError) {
+              console.warn('Failed to create payment link:', linkError);
+            } else if (linkData && linkData.length > 0) {
+              const paymentUrl = linkData[0].payment_url;
+              console.log('Payment link generated:', paymentUrl);
+
+              // Show success message with payment link
+              alert(`Lead converted successfully!\n\nExternal Payment Link:\n${paymentUrl}\n\nShare this link with the parent to submit payment information.`);
+            }
           } catch (e) {
-            console.warn('Failed to create receipt draft for converted lead', e);
+            console.warn('Failed to create receipt draft or payment link for converted lead', e);
           }
         }
 

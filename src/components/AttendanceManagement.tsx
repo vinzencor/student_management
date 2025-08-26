@@ -509,7 +509,7 @@ const AttendanceManagement: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
               <h2 className="text-xl lg:text-2xl font-bold text-secondary-800">
-                Attendance - {new Date(selectedDate).toLocaleDateString()}
+                Attendance - {new Date(selectedDate + 'T00:00:00').toLocaleDateString()}
               </h2>
               <p className="text-sm text-secondary-600 mt-1">Mark attendance for {view}</p>
             </div>

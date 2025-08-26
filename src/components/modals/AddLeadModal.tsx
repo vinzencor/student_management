@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { X, User, Mail, Phone, MapPin, Calendar, BookOpen, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, User, Mail, Phone, MapPin, Calendar, BookOpen, AlertCircle, Plus, Tag } from 'lucide-react';
 import { DataService } from '../../services/dataService';
+import { supabase } from '../../lib/supabase';
 import type { Lead } from '../../lib/supabase';
 
 interface AddLeadModalProps {
@@ -16,19 +17,23 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onLeadAdde
     email: '',
     phone: '',
     source: 'website' as Lead['source'],
+    priority: 'cold' as Lead['priority'],
     grade_level: '',
     subjects_interested: [] as string[],
     assigned_counselor: '',
     notes: '',
-    follow_up_date: ''
+    follow_up_date: '',
+    tags: [] as string[]
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  const subjects = [
-    'Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 
-    'History', 'Geography', 'Computer Science', 'Economics', 'Art'
-  ];
+  const [newSubject, setNewSubject] = useState('');
+  const [newTag, setNewTag] = useState('');
+  const [customSubjects, setCustomSubjects] = useState<string[]>([]);
+  const [batches, setBatches] = useState<any[]>([]);
+  const [batchesLoading, setBatchesLoading] = useState(false);
+  const [subjects, setSubjects] = useState<any[]>([]);
+  const [subjectsLoading, setSubjectsLoading] = useState(false);
 
   const sources = [
     { value: 'website', label: 'Website' },
@@ -37,6 +42,56 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onLeadAdde
     { value: 'walk_in', label: 'Walk-in' },
     { value: 'other', label: 'Other' }
   ];
+
+  const priorities = [
+    { value: 'hot', label: 'Hot', color: 'text-red-600 bg-red-50' },
+    { value: 'cold', label: 'Cold', color: 'text-blue-600 bg-blue-50' },
+    { value: 'lost', label: 'Lost', color: 'text-gray-600 bg-gray-50' }
+  ];
+
+  // Fetch batches and subjects when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchBatches();
+      fetchSubjects();
+    }
+  }, [isOpen]);
+
+  const fetchBatches = async () => {
+    try {
+      setBatchesLoading(true);
+      const { data, error } = await supabase
+        .from('batch_details')
+        .select('id, name, academic_year, status')
+        .eq('status', 'active')
+        .order('academic_year', { ascending: false });
+
+      if (error) throw error;
+      setBatches(data || []);
+    } catch (error) {
+      console.error('Error fetching batches:', error);
+    } finally {
+      setBatchesLoading(false);
+    }
+  };
+
+  const fetchSubjects = async () => {
+    try {
+      setSubjectsLoading(true);
+      const { data, error } = await supabase
+        .from('active_subjects')
+        .select('*')
+        .order('category', { ascending: true })
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setSubjects(data || []);
+    } catch (error) {
+      console.error('Error fetching subjects:', error);
+    } finally {
+      setSubjectsLoading(false);
+    }
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -50,6 +105,72 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onLeadAdde
         ? prev.subjects_interested.filter(s => s !== subject)
         : [...prev.subjects_interested, subject]
     }));
+  };
+
+  const handleAddCustomSubject = async () => {
+    const subjectName = newSubject.trim();
+    const allSubjectNames = getAllSubjects();
+
+    if (subjectName && !allSubjectNames.includes(subjectName)) {
+      try {
+        // Add to database
+        const { data, error } = await supabase
+          .from('subjects')
+          .insert([{
+            name: subjectName,
+            description: `Custom subject added from lead management`,
+            category: 'custom',
+            status: 'active'
+          }])
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        // Add to local subjects list
+        setSubjects(prev => [...prev, data]);
+
+        // Add to form data
+        setFormData(prev => ({
+          ...prev,
+          subjects_interested: [...prev.subjects_interested, subjectName]
+        }));
+
+        setNewSubject('');
+        console.log(`Subject "${subjectName}" added successfully`);
+      } catch (error) {
+        console.error('Error adding subject:', error);
+        // Fallback to custom subjects if database fails
+        setCustomSubjects(prev => [...prev, subjectName]);
+        setFormData(prev => ({
+          ...prev,
+          subjects_interested: [...prev.subjects_interested, subjectName]
+        }));
+        setNewSubject('');
+      }
+    }
+  };
+
+  const handleAddTag = () => {
+    if (newTag.trim() && !formData.tags.includes(newTag.trim())) {
+      setFormData(prev => ({
+        ...prev,
+        tags: [...prev.tags, newTag.trim()]
+      }));
+      setNewTag('');
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setFormData(prev => ({
+      ...prev,
+      tags: prev.tags.filter(tag => tag !== tagToRemove)
+    }));
+  };
+
+  const getAllSubjects = () => {
+    const dbSubjects = subjects.map(s => s.name);
+    return [...dbSubjects, ...customSubjects];
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -74,12 +195,17 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onLeadAdde
         email: '',
         phone: '',
         source: 'website',
+        priority: 'cold',
         grade_level: '',
         subjects_interested: [],
         assigned_counselor: '',
         notes: '',
-        follow_up_date: ''
+        follow_up_date: '',
+        tags: []
       });
+      setNewSubject('');
+      setNewTag('');
+      setCustomSubjects([]);
     } catch (error: any) {
       setError(error.message || 'Failed to create lead');
     } finally {
@@ -199,24 +325,34 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onLeadAdde
               <span>Academic Information</span>
             </h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-secondary-700 mb-2">
-                  Grade Level
+                  Batch/Grade Level
                 </label>
                 <select
                   name="grade_level"
                   value={formData.grade_level}
                   onChange={handleInputChange}
                   className="w-full px-4 py-3 border border-secondary-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                  disabled={batchesLoading}
                 >
-                  <option value="">Select Grade</option>
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map(grade => (
-                    <option key={grade} value={`Grade ${grade}`}>Grade {grade}</option>
+                  <option value="">
+                    {batchesLoading ? 'Loading batches...' : 'Select Batch/Grade'}
+                  </option>
+                  {batches.map(batch => (
+                    <option key={batch.id} value={batch.name}>
+                      {batch.name} ({batch.academic_year})
+                    </option>
                   ))}
                 </select>
+                {batches.length === 0 && !batchesLoading && (
+                  <p className="text-xs text-secondary-500 mt-1">
+                    No active batches found. Please create batches in Batch Management.
+                  </p>
+                )}
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-secondary-700 mb-2">
                   Source *
@@ -233,14 +369,55 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onLeadAdde
                   ))}
                 </select>
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-secondary-700 mb-2">
+                  Priority *
+                </label>
+                <select
+                  name="priority"
+                  value={formData.priority}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 border border-secondary-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                  required
+                >
+                  {priorities.map(priority => (
+                    <option key={priority.value} value={priority.value}>{priority.label}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-secondary-700 mb-2">
                 Subjects Interested
               </label>
+
+              {/* Add Custom Subject */}
+              <div className="mb-4 p-4 bg-secondary-50 rounded-xl border border-secondary-200">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    value={newSubject}
+                    onChange={(e) => setNewSubject(e.target.value)}
+                    placeholder="Add new subject..."
+                    className="flex-1 px-3 py-2 border border-secondary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+                    onKeyPress={(e) => e.key === 'Enter' && handleAddCustomSubject()}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddCustomSubject}
+                    className="px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center space-x-1"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span className="text-sm">Add</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Subject Selection */}
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                {subjects.map(subject => (
+                {getAllSubjects().map(subject => (
                   <label key={subject} className="flex items-center space-x-2 cursor-pointer">
                     <input
                       type="checkbox"
@@ -248,10 +425,64 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onLeadAdde
                       onChange={() => handleSubjectToggle(subject)}
                       className="w-4 h-4 text-primary-600 border-secondary-300 rounded focus:ring-primary-500"
                     />
-                    <span className="text-sm text-secondary-700">{subject}</span>
+                    <span className={`text-sm ${customSubjects.includes(subject) ? 'text-primary-700 font-medium' : 'text-secondary-700'}`}>
+                      {subject}
+                      {customSubjects.includes(subject) && <span className="text-xs text-primary-500 ml-1">(Custom)</span>}
+                    </span>
                   </label>
                 ))}
               </div>
+            </div>
+
+            {/* Tags Section */}
+            <div>
+              <label className="block text-sm font-medium text-secondary-700 mb-2">
+                Tags
+              </label>
+
+              {/* Add Tag */}
+              <div className="mb-4 p-4 bg-secondary-50 rounded-xl border border-secondary-200">
+                <div className="flex items-center space-x-2">
+                  <Tag className="w-4 h-4 text-secondary-500" />
+                  <input
+                    type="text"
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    placeholder="Add tag (e.g., VIP, Urgent, Follow-up)..."
+                    className="flex-1 px-3 py-2 border border-secondary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+                    onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddTag}
+                    className="px-3 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors flex items-center space-x-1"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span className="text-sm">Add</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Display Tags */}
+              {formData.tags.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {formData.tags.map((tag, index) => (
+                    <span
+                      key={index}
+                      className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-primary-100 text-primary-800 border border-primary-200"
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTag(tag)}
+                        className="ml-2 text-primary-600 hover:text-primary-800"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

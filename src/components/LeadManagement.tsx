@@ -15,25 +15,35 @@ import {
   CheckCircle,
   XCircle,
   Download,
-  CalendarRange
+  CalendarRange,
+  Trash2,
+  Users
 } from 'lucide-react';
 import { DataService } from '../services/dataService';
 import type { Lead } from '../lib/supabase';
 import AddLeadModal from './modals/AddLeadModal';
+import LeadDetailsModal from './modals/LeadDetailsModal';
 
 const LeadManagement: React.FC = () => {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [staffFilter, setStaffFilter] = useState<string>('all');
+  const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [downloading, setDownloading] = useState(false);
+  const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
+  const [showBulkAssign, setShowBulkAssign] = useState(false);
+  const [staff, setStaff] = useState<any[]>([]);
 
   useEffect(() => {
     fetchLeads();
+    fetchStaff();
   }, []);
 
   const fetchLeads = async () => {
@@ -45,6 +55,15 @@ const LeadManagement: React.FC = () => {
       console.error('Error fetching leads:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchStaff = async () => {
+    try {
+      const data = await DataService.getStaff();
+      setStaff(data || []);
+    } catch (error) {
+      console.error('Error fetching staff:', error);
     }
   };
 
@@ -108,6 +127,8 @@ const LeadManagement: React.FC = () => {
       (lead.email && lead.email.toLowerCase().includes(searchTerm.toLowerCase()));
 
     const matchesStatus = statusFilter === 'all' || lead.status === statusFilter;
+    const matchesStaff = staffFilter === 'all' || lead.assigned_staff_id === staffFilter;
+    const matchesSource = sourceFilter === 'all' || lead.source === sourceFilter;
 
     // Date range filtering
     let matchesDateRange = true;
@@ -120,8 +141,71 @@ const LeadManagement: React.FC = () => {
       if (end && leadDate > end) matchesDateRange = false;
     }
 
-    return matchesSearch && matchesStatus && matchesDateRange;
+    return matchesSearch && matchesStatus && matchesStaff && matchesSource && matchesDateRange;
   });
+
+  // Bulk assignment and delete functions
+  const handleSelectLead = (leadId: string) => {
+    setSelectedLeads(prev =>
+      prev.includes(leadId)
+        ? prev.filter(id => id !== leadId)
+        : [...prev, leadId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedLeads.length === filteredLeads.length) {
+      setSelectedLeads([]);
+    } else {
+      setSelectedLeads(filteredLeads.map(lead => lead.id));
+    }
+  };
+
+  const handleBulkAssignStaff = async (staffId: string) => {
+    try {
+      await Promise.all(
+        selectedLeads.map(leadId =>
+          DataService.updateLead(leadId, { assigned_staff_id: staffId })
+        )
+      );
+      setSelectedLeads([]);
+      setShowBulkAssign(false);
+      fetchLeads();
+      alert(`Successfully assigned ${selectedLeads.length} leads to staff member.`);
+    } catch (error) {
+      console.error('Error assigning leads:', error);
+      alert('Failed to assign leads. Please try again.');
+    }
+  };
+
+  const handleDeleteLead = async (leadId: string) => {
+    if (window.confirm('Are you sure you want to delete this lead?')) {
+      try {
+        await DataService.deleteLead(leadId);
+        fetchLeads();
+        alert('Lead deleted successfully.');
+      } catch (error) {
+        console.error('Error deleting lead:', error);
+        alert('Failed to delete lead. Please try again.');
+      }
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (window.confirm(`Are you sure you want to delete ${selectedLeads.length} selected leads?`)) {
+      try {
+        await Promise.all(
+          selectedLeads.map(leadId => DataService.deleteLead(leadId))
+        );
+        setSelectedLeads([]);
+        fetchLeads();
+        alert(`Successfully deleted ${selectedLeads.length} leads.`);
+      } catch (error) {
+        console.error('Error deleting leads:', error);
+        alert('Failed to delete leads. Please try again.');
+      }
+    }
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -274,7 +358,7 @@ const LeadManagement: React.FC = () => {
       {/* Filters */}
       <div className="bg-white p-4 rounded-xl border border-secondary-200 shadow-soft">
         <div className="flex flex-col gap-4">
-          {/* First Row - Search and Status */}
+          {/* First Row - Search, Status, Staff, and Source */}
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-secondary-400" />
@@ -300,6 +384,38 @@ const LeadManagement: React.FC = () => {
                 <option value="interested">Interested</option>
                 <option value="converted">Converted</option>
                 <option value="lost">Lost</option>
+              </select>
+            </div>
+
+            <div className="relative">
+              <Users className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-secondary-400" />
+              <select
+                value={staffFilter}
+                onChange={(e) => setStaffFilter(e.target.value)}
+                className="pl-10 pr-8 py-2.5 border border-secondary-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white min-w-[140px]"
+              >
+                <option value="all">All Staff</option>
+                {staff.map(member => (
+                  <option key={member.id} value={member.id}>
+                    {member.first_name} {member.last_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="relative">
+              <MapPin className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-secondary-400" />
+              <select
+                value={sourceFilter}
+                onChange={(e) => setSourceFilter(e.target.value)}
+                className="pl-10 pr-8 py-2.5 border border-secondary-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white min-w-[140px]"
+              >
+                <option value="all">All Sources</option>
+                <option value="website">Website</option>
+                <option value="referral">Referral</option>
+                <option value="social_media">Social Media</option>
+                <option value="walk_in">Walk-in</option>
+                <option value="other">Other</option>
               </select>
             </div>
           </div>
@@ -346,17 +462,78 @@ const LeadManagement: React.FC = () => {
         </div>
       </div>
 
+      {/* Bulk Actions */}
+      {selectedLeads.length > 0 && (
+        <div className="bg-primary-50 border border-primary-200 p-4 rounded-xl">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <span className="text-sm font-medium text-primary-700">
+                {selectedLeads.length} lead{selectedLeads.length > 1 ? 's' : ''} selected
+              </span>
+              <button
+                onClick={() => setShowBulkAssign(!showBulkAssign)}
+                className="flex items-center space-x-2 bg-primary-600 hover:bg-primary-700 text-white px-3 py-1.5 rounded-lg text-sm transition-colors"
+              >
+                <Users className="w-4 h-4" />
+                <span>Assign to Staff</span>
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                className="flex items-center space-x-2 bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-sm transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Delete Selected</span>
+              </button>
+            </div>
+            <button
+              onClick={() => setSelectedLeads([])}
+              className="text-secondary-600 hover:text-secondary-800 text-sm"
+            >
+              Clear Selection
+            </button>
+          </div>
+
+          {showBulkAssign && (
+            <div className="mt-3 pt-3 border-t border-primary-200">
+              <div className="flex items-center space-x-3">
+                <span className="text-sm text-primary-700">Assign to:</span>
+                <select
+                  onChange={(e) => e.target.value && handleBulkAssignStaff(e.target.value)}
+                  className="px-3 py-1.5 border border-primary-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  defaultValue=""
+                >
+                  <option value="">Select Staff Member</option>
+                  {staff.map(member => (
+                    <option key={member.id} value={member.id}>
+                      {member.first_name} {member.last_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Leads Table */}
       <div className="bg-white rounded-xl border border-secondary-200 shadow-soft overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-secondary-50 border-b border-secondary-200">
               <tr>
+                <th className="text-left py-4 px-6 font-semibold text-secondary-700">
+                  <input
+                    type="checkbox"
+                    checked={selectedLeads.length === filteredLeads.length && filteredLeads.length > 0}
+                    onChange={handleSelectAll}
+                    className="w-4 h-4 text-primary-600 border-secondary-300 rounded focus:ring-primary-500"
+                  />
+                </th>
                 <th className="text-left py-4 px-6 font-semibold text-secondary-700">Lead</th>
                 <th className="text-left py-4 px-6 font-semibold text-secondary-700">Contact</th>
                 <th className="text-left py-4 px-6 font-semibold text-secondary-700">Source</th>
                 <th className="text-left py-4 px-6 font-semibold text-secondary-700">Status</th>
-                <th className="text-left py-4 px-6 font-semibold text-secondary-700">Counselor</th>
+                <th className="text-left py-4 px-6 font-semibold text-secondary-700">Assigned Staff</th>
                 <th className="text-left py-4 px-6 font-semibold text-secondary-700">Follow-up</th>
                 <th className="text-left py-4 px-6 font-semibold text-secondary-700">Actions</th>
               </tr>
@@ -365,10 +542,27 @@ const LeadManagement: React.FC = () => {
               {filteredLeads.map((lead) => (
                 <tr key={lead.id} className="hover:bg-secondary-50 transition-colors">
                   <td className="py-4 px-6">
+                    <input
+                      type="checkbox"
+                      checked={selectedLeads.includes(lead.id)}
+                      onChange={() => handleSelectLead(lead.id)}
+                      className="w-4 h-4 text-primary-600 border-secondary-300 rounded focus:ring-primary-500"
+                    />
+                  </td>
+                  <td className="py-4 px-6">
                     <div>
-                      <p className="font-semibold text-secondary-800">
-                        {lead.first_name} {lead.last_name}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-secondary-800">
+                          {lead.first_name} {lead.last_name}
+                        </p>
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                          lead.priority === 'hot' ? 'bg-red-100 text-red-700' :
+                          lead.priority === 'cold' ? 'bg-blue-100 text-blue-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {lead.priority?.toUpperCase() || 'COLD'}
+                        </span>
+                      </div>
                       <p className="text-sm text-secondary-600">{lead.grade_level}</p>
                     </div>
                   </td>
@@ -399,7 +593,12 @@ const LeadManagement: React.FC = () => {
                     </span>
                   </td>
                   <td className="py-4 px-6">
-                    <span className="text-sm text-secondary-700">{lead.assigned_counselor || 'Unassigned'}</span>
+                    <span className="text-sm text-secondary-700">
+                      {lead.assigned_staff_id
+                        ? staff.find(s => s.id === lead.assigned_staff_id)?.first_name + ' ' + staff.find(s => s.id === lead.assigned_staff_id)?.last_name
+                        : 'Unassigned'
+                      }
+                    </span>
                   </td>
                   <td className="py-4 px-6">
                     {lead.follow_up_date ? (
@@ -414,12 +613,24 @@ const LeadManagement: React.FC = () => {
                     )}
                   </td>
                   <td className="py-4 px-6">
-                    <button
-                      onClick={() => setSelectedLead(lead)}
-                      className="text-primary-600 hover:text-primary-700 font-medium text-sm"
-                    >
-                      View Details
-                    </button>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => {
+                          setSelectedLead(lead);
+                          setShowDetailsModal(true);
+                        }}
+                        className="text-primary-600 hover:text-primary-700 font-medium text-sm"
+                      >
+                        View Details
+                      </button>
+                      <button
+                        onClick={() => handleDeleteLead(lead.id)}
+                        className="text-red-600 hover:text-red-700 p-1 rounded-lg hover:bg-red-50 transition-colors"
+                        title="Delete Lead"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -442,6 +653,19 @@ const LeadManagement: React.FC = () => {
         onClose={() => setShowAddModal(false)}
         onLeadAdded={fetchLeads}
       />
+
+      {/* Lead Details Modal */}
+      {selectedLead && (
+        <LeadDetailsModal
+          isOpen={showDetailsModal}
+          onClose={() => {
+            setShowDetailsModal(false);
+            setSelectedLead(null);
+          }}
+          lead={selectedLead}
+          onLeadUpdated={fetchLeads}
+        />
+      )}
     </div>
   );
 };

@@ -17,7 +17,7 @@ export interface Student {
   address?: string
   parent_id?: string
   enrollment_date: string
-  status: 'active' | 'inactive' | 'graduated'
+  status: 'active' | 'inactive' | 'graduated' | 'suspended'
   subjects: string[]
   created_at: string
   updated_at: string
@@ -43,11 +43,14 @@ export interface Lead {
   phone: string
   source: 'website' | 'referral' | 'social_media' | 'walk_in' | 'other'
   status: 'new' | 'contacted' | 'interested' | 'converted' | 'lost'
+  priority: 'hot' | 'cold' | 'lost'
   grade_level?: string
   subjects_interested: string[]
   assigned_counselor?: string
+  assigned_staff_id?: string
   notes?: string
   follow_up_date?: string
+  tags: string[]
   created_at: string
   updated_at: string
 }

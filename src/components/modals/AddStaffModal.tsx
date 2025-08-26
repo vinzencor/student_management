@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, User, Mail, Phone, Calendar, DollarSign, GraduationCap, Briefcase, Lock, Eye, EyeOff } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 import type { Staff } from '../../lib/supabase';
 
 interface AddStaffModalProps {
@@ -28,11 +29,29 @@ const AddStaffModal: React.FC<AddStaffModalProps> = ({ onClose, onSubmit }) => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [subjects, setSubjects] = useState<any[]>([]);
+  const [subjectsLoading, setSubjectsLoading] = useState(false);
 
-  const subjectOptions = [
-    'Mathematics', 'English', 'Science', 'Physics', 'Chemistry', 'Biology',
-    'History', 'Geography', 'Computer Science', 'Art', 'Music', 'Physical Education'
-  ];
+  useEffect(() => {
+    loadSubjects();
+  }, []);
+
+  const loadSubjects = async () => {
+    try {
+      setSubjectsLoading(true);
+      const { data, error } = await supabase
+        .from('active_subjects')
+        .select('*')
+        .order('category', { ascending: true })
+        .order('name', { ascending: true });
+      if (error) throw error;
+      setSubjects(data || []);
+    } catch (error) {
+      console.error('Error loading subjects:', error);
+    } finally {
+      setSubjectsLoading(false);
+    }
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -338,21 +357,29 @@ const AddStaffModal: React.FC<AddStaffModalProps> = ({ onClose, onSubmit }) => {
             {formData.role === 'teacher' && (
               <div>
                 <label className="block text-sm font-medium text-secondary-700 mb-2">
-                  Subjects *
+                  Subjects * {subjectsLoading && <span className="text-xs text-secondary-500">(Loading...)</span>}
                 </label>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {subjectOptions.map((subject) => (
-                    <label key={subject} className="flex items-center space-x-2 cursor-pointer">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-32 overflow-y-auto border border-secondary-200 rounded-lg p-3">
+                  {subjects.map((subject) => (
+                    <label key={subject.id} className="flex items-center space-x-2 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={formData.subjects.includes(subject)}
-                        onChange={() => handleSubjectChange(subject)}
+                        checked={formData.subjects.includes(subject.name)}
+                        onChange={() => handleSubjectChange(subject.name)}
                         className="rounded border-secondary-300 text-primary-600 focus:ring-primary-500"
+                        disabled={subjectsLoading}
                       />
-                      <span className="text-sm text-secondary-700">{subject}</span>
+                      <span className="text-sm text-secondary-700" title={subject.description}>
+                        {subject.name}
+                      </span>
                     </label>
                   ))}
                 </div>
+                {subjects.length === 0 && !subjectsLoading && (
+                  <p className="text-xs text-secondary-500 mt-1">
+                    No subjects found. Please run the subjects setup script.
+                  </p>
+                )}
                 {errors.subjects && (
                   <p className="text-danger-600 text-sm mt-1">{errors.subjects}</p>
                 )}

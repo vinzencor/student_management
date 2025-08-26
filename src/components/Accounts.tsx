@@ -588,7 +588,7 @@ const Accounts: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-secondary-600">Total Income</p>
-              <p className="text-2xl font-bold text-success-600">₹{summary.totalIncome.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-success-600">QAR{summary.totalIncome.toLocaleString()}</p>
               <p className="text-xs text-secondary-500 mt-1">
                 {filteredTransactions.filter(t => t.type === 'income').length} transactions
               </p>
@@ -603,7 +603,7 @@ const Accounts: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-secondary-600">Total Expenses</p>
-              <p className="text-2xl font-bold text-red-600">₹{summary.totalExpenses.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-red-600">QAR{summary.totalExpenses.toLocaleString()}</p>
               <p className="text-xs text-secondary-500 mt-1">
                 {filteredTransactions.filter(t => t.type === 'expense').length} transactions
               </p>
@@ -619,7 +619,7 @@ const Accounts: React.FC = () => {
             <div>
               <p className="text-sm font-medium text-secondary-600">Net Balance</p>
               <p className={`text-2xl font-bold ${summary.netBalance >= 0 ? 'text-success-600' : 'text-red-600'}`}>
-                ₹{summary.netBalance.toLocaleString()}
+                QAR{summary.netBalance.toLocaleString()}
               </p>
               <p className="text-xs text-secondary-500 mt-1">
                 Last 30 days overview
@@ -665,7 +665,7 @@ const Accounts: React.FC = () => {
                     <p className="font-medium text-secondary-800">{category.value}</p>
                     <p className="text-xs text-secondary-600">{categoryTransactions.length} transactions</p>
                   </div>
-                  <span className="font-semibold text-success-600">₹{categoryTotal.toLocaleString()}</span>
+                  <span className="font-semibold text-success-600">QAR{categoryTotal.toLocaleString()}</span>
                 </div>
               );
             })}
@@ -704,7 +704,7 @@ const Accounts: React.FC = () => {
                     <p className="font-medium text-secondary-800">{category.value}</p>
                     <p className="text-xs text-secondary-600">{categoryTransactions.length} transactions</p>
                   </div>
-                  <span className="font-semibold text-red-600">₹{categoryTotal.toLocaleString()}</span>
+                  <span className="font-semibold text-red-600">QAR{categoryTotal.toLocaleString()}</span>
                 </div>
               );
             })}
@@ -817,7 +817,7 @@ const Accounts: React.FC = () => {
                       <span className={`font-semibold ${
                         transaction.type === 'income' ? 'text-success-600' : 'text-red-600'
                       }`}>
-                        {transaction.type === 'income' ? '+' : '-'}₹{transaction.amount.toLocaleString()}
+                        {transaction.type === 'income' ? '+' : '-'}QAR{transaction.amount.toLocaleString()}
                       </span>
                     </td>
                     <td className="py-4 px-6 text-secondary-600">{transaction.payment_mode}</td>
@@ -977,7 +977,7 @@ const Accounts: React.FC = () => {
                                   )}
                                 </div>
                                 {option.price && (
-                                  <span className="text-sm font-semibold text-success-600">₹{option.price}</span>
+                                  <span className="text-sm font-semibold text-success-600">QAR{option.price}</span>
                                 )}
                               </div>
                             </button>
@@ -1015,7 +1015,7 @@ const Accounts: React.FC = () => {
                   Amount *
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-secondary-500 font-medium">₹</span>
+                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-secondary-500 font-medium">QAR</span>
                   <input
                     type="number"
                     value={formData.amount || ''}

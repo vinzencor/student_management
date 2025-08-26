@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, User, Mail, Phone, Calendar, MapPin, BookOpen, UserCheck, FileText, Clock, Edit, Trash2, Save } from 'lucide-react';
+import { X, User, Mail, Phone, Calendar, MapPin, BookOpen, UserCheck, FileText, Clock, Edit, Trash2, Save, Tag } from 'lucide-react';
 import { DataService } from '../../services/dataService';
 
 interface LeadDetailsModalProps {
@@ -12,6 +12,7 @@ interface LeadDetailsModalProps {
 const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({ isOpen, onClose, lead, onLeadUpdated }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [newTag, setNewTag] = useState('');
   const [editData, setEditData] = useState({
     first_name: lead?.first_name || '',
     last_name: lead?.last_name || '',
@@ -20,7 +21,8 @@ const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({ isOpen, onClose, le
     address: lead?.address || '',
     subjects_interested: lead?.subjects_interested || [],
     notes: lead?.notes || '',
-    source: lead?.source || 'walk_in'
+    source: lead?.source || 'walk_in',
+    tags: lead?.tags || []
   });
   if (!isOpen || !lead) return null;
 
@@ -33,7 +35,8 @@ const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({ isOpen, onClose, le
       address: lead.address || '',
       subjects_interested: lead.subjects_interested || [],
       notes: lead.notes || '',
-      source: lead.source || 'walk_in'
+      source: lead.source || 'walk_in',
+      tags: lead.tags || []
     });
     setIsEditing(true);
   };
@@ -74,6 +77,23 @@ const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({ isOpen, onClose, le
     setEditData(prev => ({
       ...prev,
       [name]: value
+    }));
+  };
+
+  const handleAddTag = () => {
+    if (newTag.trim() && !editData.tags.includes(newTag.trim())) {
+      setEditData(prev => ({
+        ...prev,
+        tags: [...prev.tags, newTag.trim()]
+      }));
+      setNewTag('');
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setEditData(prev => ({
+      ...prev,
+      tags: prev.tags.filter(tag => tag !== tagToRemove)
     }));
   };
 
@@ -236,6 +256,58 @@ const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({ isOpen, onClose, le
             )}
           </div>
 
+          {/* Tags Editing Section */}
+          {isEditing && (
+            <div className="bg-success-50 rounded-xl p-3 lg:p-4">
+              <h3 className="text-base lg:text-lg font-semibold text-secondary-800 mb-3 lg:mb-4 flex items-center">
+                <Tag className="w-4 h-4 lg:w-5 lg:h-5 mr-2 text-success-600" />
+                Tags
+              </h3>
+
+              {/* Add Tag */}
+              <div className="mb-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    placeholder="Add new tag..."
+                    className="flex-1 px-3 py-2 border border-secondary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-success-500 focus:border-success-500 text-sm"
+                    onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddTag}
+                    className="px-3 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors text-sm font-medium"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+
+              {/* Display Tags */}
+              {editData.tags.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {editData.tags.map((tag, index) => (
+                    <span
+                      key={index}
+                      className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-success-100 text-success-800 border border-success-200"
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTag(tag)}
+                        className="ml-2 text-success-600 hover:text-success-800"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Lead Information */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
             {/* Basic Info */}
@@ -347,6 +419,26 @@ const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({ isOpen, onClose, le
                     className="px-2 py-1 lg:px-3 lg:py-1 bg-primary-100 text-primary-800 rounded-full text-xs lg:text-sm font-medium"
                   >
                     {subject}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Tags */}
+          {lead.tags && lead.tags.length > 0 && (
+            <div>
+              <h3 className="text-base lg:text-lg font-semibold text-secondary-800 mb-3 flex items-center">
+                <Tag className="w-4 h-4 lg:w-5 lg:h-5 mr-2 text-success-600" />
+                Tags
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {lead.tags.map((tag: string, index: number) => (
+                  <span
+                    key={index}
+                    className="px-2 py-1 lg:px-3 lg:py-1 bg-success-100 text-success-800 rounded-full text-xs lg:text-sm font-medium border border-success-200"
+                  >
+                    {tag}
                   </span>
                 ))}
               </div>

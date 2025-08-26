@@ -371,7 +371,7 @@ const FeeManagement: React.FC = () => {
       setPayingFee(null);
       setPaymentAmount(0);
       await loadAllData(); // Reload all data to reflect changes
-      alert(`Payment of ₹${paymentAmount.toLocaleString()} recorded successfully!`);
+      alert(`Payment of QAR${paymentAmount.toLocaleString()} recorded successfully!`);
     } catch (error) {
       console.error('Error processing payment:', error);
       alert('Failed to process payment. Please try again.');
@@ -487,7 +487,7 @@ const FeeManagement: React.FC = () => {
               Collected
             </span>
           </div>
-          <h3 className="text-2xl font-bold text-secondary-800">${paidAmount.toFixed(2)}</h3>
+          <h3 className="text-2xl font-bold text-secondary-800">QAR {paidAmount.toFixed(2)}</h3>
           <p className="text-success-600 text-sm font-medium">Total Collected</p>
         </div>
 
@@ -509,7 +509,7 @@ const FeeManagement: React.FC = () => {
               Total
             </span>
           </div>
-          <h3 className="text-2xl font-bold text-secondary-800">${totalAmount.toFixed(2)}</h3>
+          <h3 className="text-2xl font-bold text-secondary-800">QAR {totalAmount.toFixed(2)}</h3>
           <p className="text-primary-600 text-sm font-medium">Total Expected</p>
         </div>
       </div>
@@ -594,7 +594,7 @@ const FeeManagement: React.FC = () => {
                                 {course.name}
                               </span>
                               <span className="text-xs text-secondary-600">
-                                ₹{course.price.toLocaleString()}
+                                QAR{course.price.toLocaleString()}
                               </span>
                             </div>
                           ))
@@ -617,17 +617,17 @@ const FeeManagement: React.FC = () => {
                       )}
                     </td>
                     <td className="px-6 py-4">
-                      <div className="font-semibold text-secondary-800">₹{(fee.amount || 0).toLocaleString()}</div>
+                      <div className="font-semibold text-secondary-800">QAR{(fee.amount || 0).toLocaleString()}</div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="font-semibold text-success-600">₹{(fee.paid_amount || 0).toLocaleString()}</div>
+                      <div className="font-semibold text-success-600">QAR{(fee.paid_amount || 0).toLocaleString()}</div>
                       {fee.paid_date && (
                         <div className="text-xs text-success-600">Paid: {new Date(fee.paid_date).toLocaleDateString()}</div>
                       )}
                     </td>
                     <td className="px-6 py-4">
                       <div className="font-semibold text-danger-600">
-                        ₹{Math.max(0, (fee.amount || 0) - (fee.paid_amount || 0)).toLocaleString()}
+                        QAR{Math.max(0, (fee.amount || 0) - (fee.paid_amount || 0)).toLocaleString()}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -699,21 +699,21 @@ const FeeManagement: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-secondary-700 mb-1">Total Fee</label>
-                  <div className="text-lg font-semibold">₹{payingFee.amount.toLocaleString()}</div>
+                  <div className="text-lg font-semibold">QAR{payingFee.amount.toLocaleString()}</div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-secondary-700 mb-1">Already Paid</label>
-                  <div className="text-lg font-semibold text-success-600">₹{(payingFee.paid_amount || 0).toLocaleString()}</div>
+                  <div className="text-lg font-semibold text-success-600">QAR{(payingFee.paid_amount || 0).toLocaleString()}</div>
                 </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-secondary-700 mb-1">Remaining Amount</label>
-                <div className="text-lg font-semibold text-danger-600">₹{(payingFee.amount - (payingFee.paid_amount || 0)).toLocaleString()}</div>
+                <div className="text-lg font-semibold text-danger-600">QAR{(payingFee.amount - (payingFee.paid_amount || 0)).toLocaleString()}</div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-secondary-700 mb-1">Payment Amount (₹) *</label>
+                <label className="block text-sm font-medium text-secondary-700 mb-1">Payment Amount (QAR) *</label>
                 <input
                   type="number"
                   min="1"
@@ -728,8 +728,8 @@ const FeeManagement: React.FC = () => {
               <div>
                 <label className="block text-sm font-medium text-secondary-700 mb-1">After Payment</label>
                 <div className="text-sm">
-                  <div>New Paid Amount: ₹{((payingFee.paid_amount || 0) + paymentAmount).toLocaleString()}</div>
-                  <div>Remaining: ₹{Math.max(0, payingFee.amount - (payingFee.paid_amount || 0) - paymentAmount).toLocaleString()}</div>
+                  <div>New Paid Amount: QAR{((payingFee.paid_amount || 0) + paymentAmount).toLocaleString()}</div>
+                  <div>Remaining: QAR{Math.max(0, payingFee.amount - (payingFee.paid_amount || 0) - paymentAmount).toLocaleString()}</div>
                 </div>
               </div>
             </div>

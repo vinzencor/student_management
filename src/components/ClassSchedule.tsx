@@ -381,7 +381,7 @@ const ClassSchedule: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-sm text-primary-600 font-medium">Fee/Month</p>
-                    <p className="text-primary-800 font-semibold">₹{selectedClass.fee_per_month}</p>
+                    <p className="text-primary-800 font-semibold">QAR{selectedClass.fee_per_month}</p>
                   </div>
                 </div>
                 {selectedClass.description && (
@@ -652,7 +652,7 @@ const ClassSchedule: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-secondary-700 mb-2">Fee/Month (₹) *</label>
+                    <label className="block text-sm font-medium text-secondary-700 mb-2">Fee/Month (QAR) *</label>
                     <input
                       type="number"
                       name="fee_per_month"

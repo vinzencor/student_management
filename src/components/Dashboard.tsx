@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import WelcomeHeader from './dashboard/WelcomeHeader';
 import KPICards from './dashboard/KPICards';
-import LeadPipeline from './dashboard/LeadPipeline';
 import QuickActions from './dashboard/QuickActions';
 import TaskAutomation from './dashboard/TaskAutomation';
 import AttendanceHeatmap from './dashboard/AttendanceHeatmap';
+import FeeManagementAlert from './dashboard/FeeManagementAlert';
 import AddLeadModal from './modals/AddLeadModal';
 import TeacherDashboard from './TeacherDashboard';
 import AccountantDashboard from './AccountantDashboard';
@@ -41,7 +41,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView }) => {
         alert('Worksheet sharing feature coming soon!');
         break;
       case 'fee-reminder':
-        setActiveView?.('fees');
+        setActiveView?.('fee-reminder');
         break;
       default:
         break;
@@ -53,9 +53,9 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView }) => {
       <WelcomeHeader />
       <KPICards />
 
-      {/* Lead Pipeline - Full Width with Responsive Height */}
-      <div className="w-full min-w-0 overflow-hidden">
-        <LeadPipeline onAddLead={() => setShowAddLeadModal(true)} />
+      {/* Fee Management Alert - Full Width */}
+      <div className="w-full min-w-0">
+        <FeeManagementAlert setActiveView={setActiveView} />
       </div>
 
       {/* Task Automation and Attendance - Responsive Grid */}

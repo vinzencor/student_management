@@ -9,7 +9,6 @@ import {
   GraduationCap,
   X,
   UserCog,
-  ChevronDown,
   ChevronRight,
   TrendingUp,
   TrendingDown,
@@ -31,13 +30,17 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, sidebarOpe
   const allMenuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home, badge: null },
     { id: 'staff', label: 'Staff Management', icon: UserCog, badge: null },
+    { id: 'staff-leads', label: 'Staff Lead Tracking', icon: TrendingUp, badge: null },
     { id: 'leads', label: 'Lead Management', icon: Users, badge: null },
+    { id: 'lead-triage', label: 'Lead Triage', icon: TrendingUp, badge: null },
     { id: 'students', label: 'Students', icon: GraduationCap, badge: null },
+    { id: 'batch-management', label: 'Batch Management', icon: Users, badge: null },
     { id: 'batches', label: 'Students by Batch', icon: Calendar, badge: null },
     { id: 'courses', label: 'Course Management', icon: GraduationCap, badge: null },
-    { id: 'schedule', label: 'Class Schedule', icon: Calendar, badge: null },
+    { id: 'batch-scheduling', label: 'Batch Scheduling', icon: Calendar, badge: null },
     { id: 'attendance', label: 'Attendance', icon: Calendar, badge: null },
     { id: 'fees', label: 'Fee Management', icon: DollarSign, badge: null },
+    { id: 'external-fees', label: 'External Fee Payments', icon: Download, badge: null },
     {
       id: 'accounts',
       label: 'Accounts',
@@ -66,14 +69,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, sidebarOpe
     // 👨‍🏫 TEACHER ACCESS - Only student-related features
     if (userRole === 'teacher' || userEmail.includes('teacher')) {
       return allMenuItems.filter(item =>
-        ['students', 'batches', 'courses', 'schedule', 'attendance', 'reports'].includes(item.id)
+        ['students', 'batch-management', 'batches', 'courses', 'batch-scheduling', 'attendance', 'reports'].includes(item.id)
       );
     }
 
     // 💰 ACCOUNTANT ACCESS - Financial and staff management
     if (userRole === 'accountant' || userEmail.includes('accountant')) {
       return allMenuItems.filter(item =>
-        ['dashboard', 'staff', 'leads', 'fees', 'accounts', 'receipts', 'reports'].includes(item.id)
+        ['dashboard', 'staff', 'staff-leads', 'leads', 'lead-triage', 'fees', 'external-fees', 'accounts', 'receipts', 'reports'].includes(item.id)
       );
     }
 
@@ -85,7 +88,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, sidebarOpe
     // 🏢 OFFICE STAFF ACCESS - Limited operations
     if (userRole === 'office_staff' || userEmail.includes('office')) {
       return allMenuItems.filter(item =>
-        ['dashboard', 'students', 'batches', 'leads', 'attendance', 'reports'].includes(item.id)
+        ['dashboard', 'students', 'batch-management', 'batches', 'batch-scheduling', 'staff-leads', 'leads', 'lead-triage', 'attendance', 'reports'].includes(item.id)
       );
     }
 
@@ -142,13 +145,19 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, sidebarOpe
       `}>
         {/* Logo section */}
         <div className="flex items-center justify-between h-16 px-6 border-b border-secondary-200">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-soft">
-              <GraduationCap className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <span className="text-xl font-bold text-secondary-800">EduCare</span>
-              <p className="text-xs text-secondary-500 font-medium">Student Management</p>
+          <div className="flex items-center">
+            <div className="h-12 w-auto rounded-xl overflow-hidden shadow-soft">
+              <img
+                src="/Logo2.jpeg"
+                alt="School Logo"
+                className="h-full w-auto object-contain"
+                onError={(e) => {
+                  // Fallback to icon if image fails to load
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  target.parentElement!.innerHTML = '<div class="w-12 h-12 bg-gradient-to-r from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-soft"><svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"></path></svg></div>';
+                }}
+              />
             </div>
           </div>
           <button

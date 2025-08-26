@@ -147,7 +147,7 @@ const StudentAdmissionModal: React.FC<StudentAdmissionModalProps> = ({
 
       // Don't create fee records automatically - let user set them in Fee Receipts
       const totalFees = getTotalFees();
-      console.log(`Student created with ${selectedCourses.length} courses. Total fees: ₹${totalFees}`);
+      console.log(`Student created with ${selectedCourses.length} courses. Total fees: QAR${totalFees}`);
 
       // 5. Create student-course enrollment records
       for (const course of selectedCourses) {
@@ -323,7 +323,7 @@ const StudentAdmissionModal: React.FC<StudentAdmissionModalProps> = ({
                                 <p className="font-medium text-secondary-800">{course.name}</p>
                                 <p className="text-xs text-secondary-600">{course.description}</p>
                               </div>
-                              <span className="font-semibold text-primary-600">₹{course.price.toLocaleString()}</span>
+                              <span className="font-semibold text-primary-600">QAR{course.price.toLocaleString()}</span>
                             </div>
                           </label>
                         </div>
@@ -339,13 +339,13 @@ const StudentAdmissionModal: React.FC<StudentAdmissionModalProps> = ({
                         {selectedCourses.map((course) => (
                           <div key={course.id} className="flex justify-between items-center text-sm">
                             <span className="text-primary-700">{course.name}</span>
-                            <span className="font-semibold text-primary-800">₹{course.price.toLocaleString()}</span>
+                            <span className="font-semibold text-primary-800">QAR{course.price.toLocaleString()}</span>
                           </div>
                         ))}
                         <div className="border-t border-primary-300 pt-2 mt-2">
                           <div className="flex justify-between items-center font-bold text-primary-900">
                             <span>Total Course Fees:</span>
-                            <span>₹{getTotalFees().toLocaleString()}</span>
+                            <span>QAR{getTotalFees().toLocaleString()}</span>
                           </div>
                         </div>
                       </div>

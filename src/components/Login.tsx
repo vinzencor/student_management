@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, GraduationCap, Mail, Lock, AlertCircle, Shield, User, DollarSign, UserCog } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, AlertCircle, Shield, User, DollarSign, UserCog } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const Login: React.FC = () => {
@@ -92,13 +92,21 @@ const Login: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Logo and Header */}
+        {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-r from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-large">
-            <GraduationCap className="w-8 h-8 text-white" />
+          <div className="w-32 h-32 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-large overflow-hidden">
+            <img
+              src="/Logo.jpeg"
+              alt="School Logo"
+              className="w-full h-full object-contain"
+              onError={(e) => {
+                // Fallback to icon if image fails to load
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                target.parentElement!.innerHTML = '<div class="w-32 h-32 bg-gradient-to-r from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center"><svg class="w-16 h-16 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"></path></svg></div>';
+              }}
+            />
           </div>
-          <h1 className="text-3xl font-bold text-secondary-800 mb-2">EduCare</h1>
-          <p className="text-secondary-600">Student Management System</p>
         </div>
 
         {/* Login Form */}

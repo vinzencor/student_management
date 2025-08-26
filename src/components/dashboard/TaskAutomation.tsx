@@ -242,7 +242,7 @@ const TaskAutomation: React.FC = () => {
       </div>
 
       {/* Fee Reminder Alerts */}
-      <div className="bg-white rounded-xl p-6 shadow-soft border border-secondary-200">
+      {/* <div className="bg-white rounded-xl p-6 shadow-soft border border-secondary-200">
         <div className="flex items-center space-x-2 mb-4">
           <Bell className="w-6 h-6 text-warning-600" />
           <h3 className="text-lg font-bold text-secondary-800">Fee Reminder Alerts</h3>
@@ -273,7 +273,7 @@ const TaskAutomation: React.FC = () => {
         <button className="w-full mt-4 bg-warning-100 hover:bg-warning-200 text-warning-800 py-3 rounded-xl transition-colors font-medium">
           Send All Reminders
         </button>
-      </div>
+      </div> */}
     </div>
   );
 };

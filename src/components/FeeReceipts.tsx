@@ -181,8 +181,9 @@ const FeeReceipts: React.FC = () => {
       <body>
         <div class="receipt">
           <div class="header">
-            <div class="school-name">EduCare Institute</div>
-            <div class="school-subtitle">Student Management System</div>
+            <div style="text-align: center; margin-bottom: 10px;">
+              <img src="/Logo.jpeg" alt="School Logo" style="height: 60px; width: auto; margin: 0 auto; display: block;" onerror="this.style.display='none';" />
+            </div>
             <div class="receipt-title">FEE PAYMENT RECEIPT</div>
             <div class="receipt-number">Receipt No: ${receipt.receipt_number}</div>
           </div>
@@ -211,7 +212,7 @@ const FeeReceipts: React.FC = () => {
           </div>
 
           <div class="amount-section">
-            <div class="amount-paid">Amount Paid: ₹${receipt.amount_paid.toLocaleString()}</div>
+            <div class="amount-paid">Amount Paid: QAR ${receipt.amount_paid.toLocaleString()}</div>
           </div>
 
           <div class="signature-section">
@@ -317,7 +318,7 @@ const FeeReceipts: React.FC = () => {
             <p className="text-sm font-medium text-primary-700">Total Receipts</p>
             <p className="text-3xl font-bold text-primary-800">{filteredReceipts.length}</p>
             <p className="text-sm text-primary-600 mt-1">
-              Total Amount: ₹{filteredReceipts.reduce((sum, r) => sum + r.amount_paid, 0).toLocaleString()}
+              Total Amount: QAR {filteredReceipts.reduce((sum, r) => sum + r.amount_paid, 0).toLocaleString()}
             </p>
           </div>
           <div className="w-16 h-16 bg-primary-200 rounded-full flex items-center justify-center">
@@ -373,7 +374,7 @@ const FeeReceipts: React.FC = () => {
                     <td className="py-4 px-6 text-secondary-800">{receipt.course_name}</td>
                     <td className="py-4 px-6">
                       <span className="font-semibold text-success-600">
-                        ₹{receipt.amount_paid.toLocaleString()}
+                        QAR {receipt.amount_paid.toLocaleString()}
                       </span>
                     </td>
                     <td className="py-4 px-6 text-secondary-600">

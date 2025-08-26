@@ -240,10 +240,10 @@ const Reports: React.FC = () => {
               Revenue
             </span>
           </div>
-          <h3 className="text-2xl font-bold text-secondary-800">${analytics.totalRevenue.toFixed(2)}</h3>
+          <h3 className="text-2xl font-bold text-secondary-800">QAR {analytics.totalRevenue.toFixed(2)}</h3>
           <p className="text-success-600 text-sm font-medium">Total Collected</p>
           <div className="mt-2 text-xs text-success-600">
-            ${analytics.pendingRevenue.toFixed(2)} pending
+            QAR {analytics.pendingRevenue.toFixed(2)} pending
           </div>
         </div>
 
@@ -326,7 +326,7 @@ const Reports: React.FC = () => {
                   <span className="text-sm font-medium text-secondary-700">{item.status}</span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <span className="text-sm font-semibold text-secondary-800">${item.amount.toFixed(2)}</span>
+                  <span className="text-sm font-semibold text-secondary-800">QAR {item.amount.toFixed(2)}</span>
                   <span className="text-xs text-secondary-500">
                     ({(analytics.totalRevenue + analytics.pendingRevenue + analytics.overdueRevenue) > 0 ?
                       ((item.amount / (analytics.totalRevenue + analytics.pendingRevenue + analytics.overdueRevenue)) * 100).toFixed(1) : 0}%)

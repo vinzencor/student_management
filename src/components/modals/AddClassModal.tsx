@@ -222,7 +222,7 @@ const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, onClassA
 
                 <div>
                   <label className="block text-sm font-medium text-secondary-700 mb-2">
-                    Fee Per Month (₹) *
+                    Fee Per Month (QAR) *
                   </label>
                   <input
                     type="number"

@@ -223,7 +223,7 @@ const AddFeePaymentModal: React.FC<AddFeePaymentModalProps> = ({
               <option value="">Choose a course</option>
               {courses.map((course) => (
                 <option key={course.id} value={course.id}>
-                  {course.name} - ₹{course.price.toLocaleString()}
+                  {course.name} - QAR{course.price.toLocaleString()}
                 </option>
               ))}
             </select>
@@ -344,15 +344,15 @@ const AddFeePaymentModal: React.FC<AddFeePaymentModalProps> = ({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-primary-700">Total Fee:</span>
-                  <span className="font-medium text-primary-800">₹{formData.fee_amount.toLocaleString()}</span>
+                  <span className="font-medium text-primary-800">QAR{formData.fee_amount.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-primary-700">Payment Amount:</span>
-                  <span className="font-medium text-primary-800">₹{formData.payment_amount.toLocaleString()}</span>
+                  <span className="font-medium text-primary-800">QAR{formData.payment_amount.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between border-t border-primary-300 pt-1 mt-1">
                   <span className="text-primary-700">Remaining:</span>
-                  <span className="font-bold text-primary-900">₹{(formData.fee_amount - formData.payment_amount).toLocaleString()}</span>
+                  <span className="font-bold text-primary-900">QAR{(formData.fee_amount - formData.payment_amount).toLocaleString()}</span>
                 </div>
               </div>
             </div>

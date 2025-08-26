@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Search, Menu, User, Settings, ChevronDown, LogOut, Shield } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import AccountSettingsModal from './modals/AccountSettingsModal';
 
 interface TopBarProps {
   setSidebarOpen: (open: boolean) => void;
@@ -9,6 +10,7 @@ interface TopBarProps {
 const TopBar: React.FC<TopBarProps> = ({ setSidebarOpen }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showAccountSettings, setShowAccountSettings] = useState(false);
   const { user, signOut } = useAuth();
 
   // Refs for click outside detection
@@ -47,6 +49,23 @@ const TopBar: React.FC<TopBarProps> = ({ setSidebarOpen }) => {
           >
             <Menu className="w-6 h-6 text-secondary-600" />
           </button>
+
+          {/* Logo */}
+          <div className="flex items-center">
+            <div className="h-10 w-auto rounded-lg overflow-hidden shadow-soft">
+              <img
+                src="/Logo2.jpeg"
+                alt="School Logo"
+                className="h-full w-auto object-contain"
+                onError={(e) => {
+                  // Fallback to icon if image fails to load
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  target.parentElement!.innerHTML = '<div class="w-10 h-10 bg-gradient-to-r from-primary-500 to-primary-600 rounded-lg flex items-center justify-center"><svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"></path></svg></div>';
+                }}
+              />
+            </div>
+          </div>
 
           {/* Debug Role Indicator - Remove in production */}
           {process.env.NODE_ENV === 'development' && user && (
@@ -184,7 +203,13 @@ const TopBar: React.FC<TopBarProps> = ({ setSidebarOpen }) => {
                   </div>
                 </div>
                 <div className="py-2">
-                  <button className="w-full text-left px-4 py-3 hover:bg-secondary-50 transition-colors flex items-center space-x-3 group">
+                  <button
+                    onClick={() => {
+                      setShowAccountSettings(true);
+                      setShowProfile(false);
+                    }}
+                    className="w-full text-left px-4 py-3 hover:bg-secondary-50 transition-colors flex items-center space-x-3 group"
+                  >
                     <Settings className="w-4 h-4 text-secondary-500 group-hover:text-secondary-600" />
                     <span className="text-sm text-secondary-700 group-hover:text-secondary-800">Account Settings</span>
                   </button>
@@ -201,6 +226,12 @@ const TopBar: React.FC<TopBarProps> = ({ setSidebarOpen }) => {
           </div>
         </div>
       </div>
+
+      {/* Account Settings Modal */}
+      <AccountSettingsModal
+        isOpen={showAccountSettings}
+        onClose={() => setShowAccountSettings(false)}
+      />
     </div>
   );
 };

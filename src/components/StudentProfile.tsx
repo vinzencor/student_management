@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Mail, Phone, MapPin, Calendar, BookOpen, Trophy, Plus, Search, Filter, Eye, X, Edit } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Calendar, BookOpen, Trophy, Plus, Search, Filter, Eye, X, Edit, Trash2, UserX, AlertTriangle } from 'lucide-react';
 import { DataService } from '../services/dataService';
 import { supabase } from '../lib/supabase';
 import type { Student } from '../lib/supabase';
@@ -65,6 +65,83 @@ const StudentProfile: React.FC<StudentProfileProps> = ({ onNavigateToFeeReceipts
     }
   };
 
+  const handleSuspendStudent = async (student: Student) => {
+    const action = student.status === 'suspended' ? 'reactivate' : 'suspend';
+    const confirmMessage = student.status === 'suspended'
+      ? `Are you sure you want to reactivate ${student.first_name} ${student.last_name}?`
+      : `Are you sure you want to suspend ${student.first_name} ${student.last_name}? This will temporarily disable their access and enrollment.`;
+
+    if (window.confirm(confirmMessage)) {
+      try {
+        const newStatus = student.status === 'suspended' ? 'active' : 'suspended';
+
+        const { error } = await supabase
+          .from('students')
+          .update({
+            status: newStatus,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', student.id);
+
+        if (error) throw error;
+
+        // Also update student_batches status if suspended
+        if (newStatus === 'suspended') {
+          await supabase
+            .from('student_batches')
+            .update({ status: 'inactive' })
+            .eq('student_id', student.id);
+        } else {
+          await supabase
+            .from('student_batches')
+            .update({ status: 'active' })
+            .eq('student_id', student.id);
+        }
+
+        alert(`Student ${action}d successfully!`);
+        fetchStudents();
+      } catch (error) {
+        console.error(`Error ${action}ing student:`, error);
+        alert(`Failed to ${action} student. Please try again.`);
+      }
+    }
+  };
+
+  const handleDeleteStudent = async (student: Student) => {
+    const confirmMessage = `⚠️ WARNING: Are you sure you want to permanently delete ${student.first_name} ${student.last_name}?\n\nThis action will:\n- Remove all student records\n- Delete all fee records\n- Remove batch assignments\n- Delete all related data\n\nThis action CANNOT be undone!\n\nType "DELETE" to confirm:`;
+
+    const userInput = prompt(confirmMessage);
+
+    if (userInput === 'DELETE') {
+      try {
+        // Delete related records first (due to foreign key constraints)
+        await Promise.all([
+          supabase.from('student_batches').delete().eq('student_id', student.id),
+          supabase.from('student_courses').delete().eq('student_id', student.id),
+          supabase.from('fees').delete().eq('student_id', student.id),
+          supabase.from('receipts').delete().eq('student_id', student.id),
+          supabase.from('external_fee_payments').delete().eq('student_id', student.id)
+        ]);
+
+        // Finally delete the student record
+        const { error } = await supabase
+          .from('students')
+          .delete()
+          .eq('id', student.id);
+
+        if (error) throw error;
+
+        alert('Student deleted successfully!');
+        fetchStudents();
+      } catch (error) {
+        console.error('Error deleting student:', error);
+        alert('Failed to delete student. Please try again.');
+      }
+    } else if (userInput !== null) {
+      alert('Deletion cancelled. You must type "DELETE" exactly to confirm.');
+    }
+  };
+
   const filteredStudents = students.filter(student => {
     const matchesSearch =
       student.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -82,6 +159,7 @@ const StudentProfile: React.FC<StudentProfileProps> = ({ onNavigateToFeeReceipts
       case 'active': return 'bg-success-100 text-success-700 border-success-200';
       case 'inactive': return 'bg-warning-100 text-warning-700 border-warning-200';
       case 'graduated': return 'bg-primary-100 text-primary-700 border-primary-200';
+      case 'suspended': return 'bg-red-100 text-red-700 border-red-200';
       default: return 'bg-secondary-100 text-secondary-700 border-secondary-200';
     }
   };
@@ -147,6 +225,7 @@ const StudentProfile: React.FC<StudentProfileProps> = ({ onNavigateToFeeReceipts
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
               <option value="graduated">Graduated</option>
+              <option value="suspended">Suspended</option>
             </select>
           </div>
         </div>
@@ -155,13 +234,28 @@ const StudentProfile: React.FC<StudentProfileProps> = ({ onNavigateToFeeReceipts
       {/* Student Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredStudents.map((student) => (
-          <div key={student.id} className="bg-white rounded-2xl p-6 shadow-soft border border-secondary-200 hover:shadow-medium transition-all duration-300 hover:scale-[1.02]">
+          <div key={student.id} className={`bg-white rounded-2xl p-6 shadow-soft border border-secondary-200 hover:shadow-medium transition-all duration-300 hover:scale-[1.02] ${
+            student.status === 'suspended' ? 'opacity-75 border-red-200' : ''
+          }`}>
             <div className="flex items-center space-x-4 mb-4">
-              <div className="w-16 h-16 bg-gradient-to-r from-primary-500 to-primary-600 rounded-full flex items-center justify-center shadow-soft">
-                <User className="w-8 h-8 text-white" />
+              <div className={`w-16 h-16 rounded-full flex items-center justify-center shadow-soft ${
+                student.status === 'suspended'
+                  ? 'bg-gradient-to-r from-red-500 to-red-600'
+                  : 'bg-gradient-to-r from-primary-500 to-primary-600'
+              }`}>
+                {student.status === 'suspended' ? (
+                  <AlertTriangle className="w-8 h-8 text-white" />
+                ) : (
+                  <User className="w-8 h-8 text-white" />
+                )}
               </div>
               <div>
-                <h3 className="font-bold text-secondary-800">{student.first_name} {student.last_name}</h3>
+                <div className="flex items-center space-x-2">
+                  <h3 className="font-bold text-secondary-800">{student.first_name} {student.last_name}</h3>
+                  {student.status === 'suspended' && (
+                    <AlertTriangle className="w-4 h-4 text-red-600" />
+                  )}
+                </div>
                 <p className="text-secondary-600 text-sm">{student.grade_level}</p>
                 <div className="flex items-center mt-1">
                   <span className={`text-xs px-2 py-1 rounded-full border font-medium ${getStatusColor(student.status)}`}>
@@ -205,24 +299,49 @@ const StudentProfile: React.FC<StudentProfileProps> = ({ onNavigateToFeeReceipts
               )}
             </div>
 
-            <div className="flex space-x-2">
-              <button
-                onClick={() => handleViewStudent(student)}
-                className="flex-1 bg-primary-100 hover:bg-primary-200 text-primary-700 py-2 rounded-lg transition-colors text-sm font-medium flex items-center justify-center space-x-1"
-              >
-                <Eye className="w-4 h-4" />
-                <span>View Details</span>
-              </button>
-              <button
-                onClick={() => {
-                  setSelectedStudent(student);
-                  setShowEditModal(true);
-                }}
-                className="flex-1 bg-secondary-100 hover:bg-secondary-200 text-secondary-700 py-2 rounded-lg transition-colors text-sm font-medium flex items-center justify-center space-x-1"
-              >
-                <Edit className="w-4 h-4" />
-                <span>Edit</span>
-              </button>
+            <div className="space-y-2">
+              {/* Primary Actions */}
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => handleViewStudent(student)}
+                  className="flex-1 bg-primary-100 hover:bg-primary-200 text-primary-700 py-2 rounded-lg transition-colors text-sm font-medium flex items-center justify-center space-x-1"
+                >
+                  <Eye className="w-4 h-4" />
+                  <span>View</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedStudent(student);
+                    setShowEditModal(true);
+                  }}
+                  className="flex-1 bg-secondary-100 hover:bg-secondary-200 text-secondary-700 py-2 rounded-lg transition-colors text-sm font-medium flex items-center justify-center space-x-1"
+                >
+                  <Edit className="w-4 h-4" />
+                  <span>Edit</span>
+                </button>
+              </div>
+
+              {/* Secondary Actions */}
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => handleSuspendStudent(student)}
+                  className={`flex-1 py-2 rounded-lg transition-colors text-sm font-medium flex items-center justify-center space-x-1 ${
+                    student.status === 'suspended'
+                      ? 'bg-success-100 hover:bg-success-200 text-success-700'
+                      : 'bg-warning-100 hover:bg-warning-200 text-warning-700'
+                  }`}
+                >
+                  <UserX className="w-4 h-4" />
+                  <span>{student.status === 'suspended' ? 'Reactivate' : 'Suspend'}</span>
+                </button>
+                <button
+                  onClick={() => handleDeleteStudent(student)}
+                  className="flex-1 bg-red-100 hover:bg-red-200 text-red-700 py-2 rounded-lg transition-colors text-sm font-medium flex items-center justify-center space-x-1"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Delete</span>
+                </button>
+              </div>
             </div>
           </div>
         ))}
@@ -244,7 +363,7 @@ const StudentProfile: React.FC<StudentProfileProps> = ({ onNavigateToFeeReceipts
           fetchStudents();
           if (studentId && onNavigateToFeeReceipts) {
             // Show success message and redirect to Fee Receipts
-            alert(`Student created successfully! Please go to Fee Receipts section to set up fees and payments for the selected courses (Total: ₹${totalFees?.toLocaleString()}).`);
+            alert(`Student created successfully! Please go to Fee Receipts section to set up fees and payments for the selected courses (Total: QAR${totalFees?.toLocaleString()}).`);
             onNavigateToFeeReceipts(studentId);
           }
         }}
@@ -378,7 +497,7 @@ const StudentProfile: React.FC<StudentProfileProps> = ({ onNavigateToFeeReceipts
                           <span className="text-sm text-secondary-600">
                             Enrolled: {new Date(enrollment.enrollment_date).toLocaleDateString()}
                           </span>
-                          <span className="font-semibold text-primary-700">₹{enrollment.courses.price.toLocaleString()}</span>
+                          <span className="font-semibold text-primary-700">QAR{enrollment.courses.price.toLocaleString()}</span>
                         </div>
                       </div>
                     ))}
@@ -413,9 +532,9 @@ const StudentProfile: React.FC<StudentProfileProps> = ({ onNavigateToFeeReceipts
                             </span>
                           </div>
                           <div className="text-right">
-                            <p className="font-semibold text-secondary-800">₹{fee.amount.toLocaleString()}</p>
-                            <p className="text-sm text-success-600">Paid: ₹{(fee.paid_amount || 0).toLocaleString()}</p>
-                            <p className="text-sm text-red-600">Remaining: ₹{fee.remaining_amount.toLocaleString()}</p>
+                            <p className="font-semibold text-secondary-800">QAR{fee.amount.toLocaleString()}</p>
+                            <p className="text-sm text-success-600">Paid: QAR{(fee.paid_amount || 0).toLocaleString()}</p>
+                            <p className="text-sm text-red-600">Remaining: QAR{fee.remaining_amount.toLocaleString()}</p>
                           </div>
                         </div>
                       </div>

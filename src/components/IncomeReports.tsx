@@ -510,7 +510,7 @@ const IncomeReports: React.FC = () => {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-success-700">Total Income</p>
-            <p className="text-3xl font-bold text-success-800">₹{totalIncome.toLocaleString()}</p>
+            <p className="text-3xl font-bold text-success-800">QAR {totalIncome.toLocaleString()}</p>
             <p className="text-sm text-success-600 mt-1">
               {transactions.length} transactions from {new Date(dateRange.startDate).toLocaleDateString()} to {new Date(dateRange.endDate).toLocaleDateString()}
             </p>
@@ -541,7 +541,7 @@ const IncomeReports: React.FC = () => {
                   <div className="flex-1">
                     <div className="flex justify-between items-center mb-2">
                       <p className="font-semibold text-secondary-800">{category}</p>
-                      <span className="font-bold text-success-700">₹{categoryTotal.toLocaleString()}</span>
+                      <span className="font-bold text-success-700">QAR{categoryTotal.toLocaleString()}</span>
                     </div>
                     <div className="flex items-center space-x-3">
                       <div className="flex-1 bg-success-200 rounded-full h-2">
@@ -618,7 +618,7 @@ const IncomeReports: React.FC = () => {
                     </td>
                     <td className="py-4 px-6">
                       <span className="font-semibold text-success-600">
-                        +₹{transaction.amount.toLocaleString()}
+                        +QAR {transaction.amount.toLocaleString()}
                       </span>
                     </td>
                     <td className="py-4 px-6 text-secondary-600">{transaction.payment_mode}</td>
@@ -755,7 +755,7 @@ const IncomeReports: React.FC = () => {
                                   )}
                                 </div>
                                 {option.price && (
-                                  <span className="text-sm font-semibold text-success-600">₹{option.price}</span>
+                                  <span className="text-sm font-semibold text-success-600">QAR{option.price}</span>
                                 )}
                               </div>
                             </button>
