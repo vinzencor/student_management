@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DollarSign, CheckCircle, AlertTriangle, Clock, Plus, Search, Filter, Mail, Send } from 'lucide-react';
-import { DataService } from '../services/dataService';
+import { DollarSign, CheckCircle, AlertTriangle, Clock, Plus, Search, Filter, Send } from 'lucide-react';
 import { EmailService } from '../services/emailService';
 import { supabase } from '../lib/supabase';
 import type { Fee } from '../lib/supabase';
@@ -50,7 +49,7 @@ const FeeManagement: React.FC = () => {
           )
         `)
         .eq('status', 'active')
-        .order('first_name');
+        .order('created_at', { ascending: false }); // New students first
       setStudents(studentsData || []);
 
       // Load comprehensive fee data from multiple sources
@@ -269,7 +268,7 @@ const FeeManagement: React.FC = () => {
         const studentId = payingFee.student_id;
 
         // Get all pending/partial fee records for this student
-        const { data: studentFeeRecords, error: fetchError } = await supabase
+        const { data: fetchedFeeRecords, error: fetchError } = await supabase
           .from('fees')
           .select('*')
           .eq('student_id', studentId)
@@ -277,6 +276,8 @@ const FeeManagement: React.FC = () => {
           .order('due_date');
 
         if (fetchError) throw fetchError;
+
+        let studentFeeRecords = fetchedFeeRecords;
 
         if (!studentFeeRecords || studentFeeRecords.length === 0) {
           // If no fee records exist, create them based on enrolled courses

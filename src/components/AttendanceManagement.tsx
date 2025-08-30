@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Calendar, Search, Users, UserCheck, Save, ChevronLeft, ChevronRight, FileText, Download, Eye, X } from 'lucide-react';
 import { DataService } from '../services/dataService';
 import { supabase } from '../lib/supabase';
+import { EmailNotificationService } from '../services/emailNotificationService';
 
 type AttendanceStatus = 'P' | 'A' | 'H'; // Present, Absent, Holiday
 
@@ -16,7 +17,16 @@ interface AttendanceRecord {
 
 const AttendanceManagement: React.FC = () => {
   const [view, setView] = useState<'students' | 'staff'>('students');
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+
+  // Helper function to get local date string (YYYY-MM-DD)
+  const getLocalDateString = (date: Date = new Date()) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const [selectedDate, setSelectedDate] = useState<string>(getLocalDateString());
   const [students, setStudents] = useState<any[]>([]);
   const [staff, setStaff] = useState<any[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
@@ -25,10 +35,114 @@ const AttendanceManagement: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedBatch, setSelectedBatch] = useState<string>('all');
-  const [batches, setBatches] = useState<string[]>([]);
+  const [batches, setBatches] = useState<any[]>([]);
   const [showIndividualReport, setShowIndividualReport] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState<any>(null);
   const [individualReportData, setIndividualReportData] = useState<any[]>([]);
+  const [reportDateRange, setReportDateRange] = useState({
+    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days ago
+    endDate: getLocalDateString()
+  });
+
+  // Function to check if student needs attendance-based email reminder
+  const checkAttendanceEmailTrigger = async (studentId: string) => {
+    try {
+      // Count total present days for this student
+      const { data: attendanceData, error: attendanceError } = await supabase
+        .from('attendance')
+        .select('date, status')
+        .eq('student_id', studentId)
+        .eq('status', 'P')
+        .order('date', { ascending: true });
+
+      if (attendanceError) {
+        console.error('Error fetching attendance for email trigger:', attendanceError);
+        return;
+      }
+
+      const attendanceDays = attendanceData?.length || 0;
+
+      // If exactly 8 days, check if we need to send reminder
+      if (attendanceDays === 8) {
+        // Check if we've already sent a reminder for this milestone
+        const { data: existingReminder, error: reminderError } = await supabase
+          .from('email_reminders')
+          .select('id')
+          .eq('student_id', studentId)
+          .eq('reminder_type', 'attendance_8_days')
+          .single();
+
+        if (reminderError && reminderError.code !== 'PGRST116') {
+          console.error('Error checking existing reminders:', reminderError);
+          return;
+        }
+
+        // If no reminder sent yet, trigger the email
+        if (!existingReminder) {
+          console.log(`Student ${studentId} has reached 8 days attendance - triggering email reminder`);
+
+          // Get student and parent information
+          const { data: student, error: studentError } = await supabase
+            .from('students')
+            .select(`
+              *,
+              parent:parents(*)
+            `)
+            .eq('id', studentId)
+            .single();
+
+          if (studentError) {
+            console.error('Error fetching student for email reminder:', studentError);
+            return;
+          }
+
+          // Send the email reminder
+          const result = await EmailNotificationService.sendFeeReminder({
+            type: 'attendance_reminder',
+            studentId: studentId,
+            parentEmail: student.parent?.email,
+            studentEmail: student.email,
+            attendanceDays: attendanceDays
+          });
+
+          if (result.success) {
+            console.log('Attendance-based email reminder sent successfully');
+
+            // Show a notification to the user
+            const studentName = `${student.first_name} ${student.last_name}`;
+            alert(`📧 Fee reminder email sent to ${studentName} (${attendanceDays} days attended)`);
+          } else {
+            console.error('Failed to send attendance-based email reminder:', result.error);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error in attendance email trigger check:', error);
+    }
+  };
+
+  // Function to load batches from database
+  const loadBatches = async () => {
+    try {
+      const { data: batchData, error } = await supabase
+        .from('batch_details')
+        .select('id, name, academic_year, active_students, status')
+        .eq('status', 'active')
+        .order('academic_year', { ascending: false })
+        .order('name');
+
+      if (error) {
+        console.error('Error loading batches:', error);
+        setBatches([]);
+        return;
+      }
+
+      setBatches(batchData || []);
+    } catch (error) {
+      console.error('Error loading batches:', error);
+      setBatches([]);
+    }
+  };
 
   useEffect(() => {
     loadData();
@@ -38,27 +152,40 @@ const AttendanceManagement: React.FC = () => {
     try {
       setLoading(true);
 
+      // Load batches first (for both students and staff views)
+      await loadBatches();
+
       if (view === 'students') {
-        // Load students with batch information
+        // Load students with batch information (including students not assigned to batches)
         const { data: studentsData } = await supabase
           .from('students')
-          .select('*, course:courses(name)')
+          .select(`
+            *,
+            course:courses(name),
+            student_batches(
+              batch:batches(
+                id,
+                name,
+                academic_year
+              )
+            )
+          `)
           .eq('status', 'active')
-          .order('grade_level, first_name');
+          .order('first_name');
 
         const students = studentsData || [];
         setStudents(students);
 
-        // Extract unique batches/grade levels
-        const uniqueBatches = [...new Set(students.map(s => s.grade_level).filter(Boolean))];
-        setBatches(uniqueBatches);
-
         // Load student attendance for selected date
-        const { data: attendanceData } = await supabase
+        const { data: attendanceData, error: attendanceError } = await supabase
           .from('attendance')
           .select('*')
           .eq('date', selectedDate)
           .not('student_id', 'is', null);
+
+        if (attendanceError) {
+          console.error('Error loading attendance data:', attendanceError);
+        }
 
         // Create attendance records for all students (default to Present)
         const attendanceMap = new Map();
@@ -76,6 +203,8 @@ const AttendanceManagement: React.FC = () => {
           };
         });
 
+        console.log('Loaded attendance for', selectedDate, ':', allAttendance.length, 'records');
+
         setAttendance(allAttendance);
       } else {
         // Load staff
@@ -87,11 +216,15 @@ const AttendanceManagement: React.FC = () => {
         setStaff(staffData || []);
 
         // Load staff attendance for selected date
-        const { data: attendanceData } = await supabase
+        const { data: attendanceData, error: attendanceError } = await supabase
           .from('attendance')
           .select('*')
           .eq('date', selectedDate)
           .not('staff_id', 'is', null);
+
+        if (attendanceError) {
+          console.error('Error loading staff attendance data:', attendanceError);
+        }
 
         // Create attendance records for all staff (default to Present)
         const attendanceMap = new Map();
@@ -109,6 +242,8 @@ const AttendanceManagement: React.FC = () => {
           };
         });
 
+        console.log('Loaded staff attendance for', selectedDate, ':', allAttendance.length, 'records');
+
         setAttendance(allAttendance);
       }
     } catch (error) {
@@ -118,19 +253,18 @@ const AttendanceManagement: React.FC = () => {
     }
   };
 
-  const updateAttendance = (index: number, field: keyof AttendanceRecord, value: any) => {
+  const updateAttendance = async (index: number, field: keyof AttendanceRecord, value: any) => {
     const updated = [...attendance];
     updated[index] = { ...updated[index], [field]: value };
     setAttendance(updated);
-  };
 
-  const saveAttendance = async () => {
-    try {
-      setSaving(true);
+    // Auto-save the specific record when status changes
+    if (field === 'status') {
+      try {
+        const record = updated[index];
 
-      for (const record of attendance) {
         if (record.id) {
-          // Update existing record
+          // Update existing record immediately
           await supabase
             .from('attendance')
             .update({
@@ -139,8 +273,8 @@ const AttendanceManagement: React.FC = () => {
             })
             .eq('id', record.id);
         } else {
-          // Insert new record
-          await supabase
+          // Insert new record immediately
+          const { data: insertedData, error: insertError } = await supabase
             .from('attendance')
             .insert({
               date: record.date,
@@ -148,15 +282,83 @@ const AttendanceManagement: React.FC = () => {
               staff_id: record.staff_id || null,
               status: record.status,
               notes: record.notes || null
+            })
+            .select()
+            .single();
+
+          if (insertError) {
+            console.error('Error auto-saving attendance:', insertError);
+          } else if (insertedData) {
+            // Update the local record with the new ID
+            updated[index] = { ...updated[index], id: insertedData.id };
+            setAttendance([...updated]);
+
+            // Check for attendance-based email triggers if status is 'P' (Present)
+            if (record.status === 'P' && record.student_id) {
+              checkAttendanceEmailTrigger(record.student_id);
+            }
+          }
+        }
+
+        console.log('Auto-saved attendance for', record.student_id || record.staff_id);
+      } catch (error) {
+        console.error('Error auto-saving attendance:', error);
+      }
+    }
+  };
+
+  const saveAttendance = async () => {
+    try {
+      setSaving(true);
+
+      // Process each attendance record
+      for (const record of attendance) {
+        // Ensure we have the required fields
+        if (!record.date || (!record.student_id && !record.staff_id)) {
+          console.warn('Skipping invalid record:', record);
+          continue;
+        }
+
+        if (record.id) {
+          // Update existing record
+          const { error: updateError } = await supabase
+            .from('attendance')
+            .update({
+              status: record.status,
+              notes: record.notes || null
+            })
+            .eq('id', record.id);
+
+          if (updateError) {
+            console.error('Error updating record:', updateError);
+            throw updateError;
+          }
+        } else {
+          // Insert new record - use upsert to handle duplicates
+          const { error: insertError } = await supabase
+            .from('attendance')
+            .upsert({
+              date: record.date,
+              student_id: record.student_id || null,
+              staff_id: record.staff_id || null,
+              status: record.status,
+              notes: record.notes || null
+            }, {
+              onConflict: view === 'students' ? 'date,student_id' : 'date,staff_id'
             });
+
+          if (insertError) {
+            console.error('Error inserting record:', insertError);
+            throw insertError;
+          }
         }
       }
 
       alert('Attendance saved successfully!');
       await loadData(); // Reload to get updated IDs
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving attendance:', error);
-      alert('Failed to save attendance');
+      alert(`Failed to save attendance: ${error?.message || 'Unknown error'}`);
     } finally {
       setSaving(false);
     }
@@ -175,27 +377,61 @@ const AttendanceManagement: React.FC = () => {
     try {
       setLoading(true);
       setSelectedPerson(person);
-
-      // Get attendance data for the last 30 days
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - 30);
-
-      const { data: reportData } = await supabase
-        .from('attendance')
-        .select('*')
-        .gte('date', startDate.toISOString().split('T')[0])
-        .lte('date', endDate.toISOString().split('T')[0])
-        .eq(view === 'students' ? 'student_id' : 'staff_id', person.id)
-        .order('date', { ascending: false });
-
-      setIndividualReportData(reportData || []);
+      await fetchIndividualReportData(person);
       setShowIndividualReport(true);
     } catch (error) {
       console.error('Error loading individual report:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchIndividualReportData = async (person: any) => {
+    const { data: reportData } = await supabase
+      .from('attendance')
+      .select('*')
+      .gte('date', reportDateRange.startDate)
+      .lte('date', reportDateRange.endDate)
+      .eq(view === 'students' ? 'student_id' : 'staff_id', person.id)
+      .order('date', { ascending: false });
+
+    setIndividualReportData(reportData || []);
+  };
+
+  const downloadIndividualReport = () => {
+    if (!selectedPerson || !individualReportData.length) return;
+
+    const presentDays = individualReportData.filter(r => r.status === 'P').length;
+    const absentDays = individualReportData.filter(r => r.status === 'A').length;
+    const holidayDays = individualReportData.filter(r => r.status === 'H').length;
+    const totalDays = individualReportData.length;
+
+    const csvContent = [
+      ['Attendance Report'],
+      [`${view === 'students' ? 'Student' : 'Staff'}: ${selectedPerson.first_name} ${selectedPerson.last_name}`],
+      [`Period: ${reportDateRange.startDate} to ${reportDateRange.endDate}`],
+      [`Total Days: ${totalDays}`],
+      [`Present: ${presentDays}`],
+      [`Absent: ${absentDays}`],
+      [`Holiday: ${holidayDays}`],
+      [''],
+      ['Date', 'Status', 'Notes'],
+      ...individualReportData.map(record => [
+        record.date,
+        record.status === 'P' ? 'Present' : record.status === 'A' ? 'Absent' : 'Holiday',
+        record.notes || ''
+      ])
+    ].map(row => row.join(',')).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${selectedPerson.first_name}_${selectedPerson.last_name}_Attendance_${reportDateRange.startDate}_to_${reportDateRange.endDate}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
   };
 
   const downloadAttendanceReport = async () => {
@@ -410,7 +646,21 @@ const AttendanceManagement: React.FC = () => {
     ? students.filter(student => {
         const matchesSearch = `${student.first_name} ${student.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
           student.course?.name?.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesBatch = selectedBatch === 'all' || student.grade_level === selectedBatch;
+
+        // Check if student matches selected batch
+        if (selectedBatch === 'all') {
+          return matchesSearch;
+        }
+
+        if (selectedBatch === 'unassigned') {
+          // Show students not assigned to any batch
+          return matchesSearch && (!student.student_batches || student.student_batches.length === 0);
+        }
+
+        // Check if student is assigned to the selected batch
+        const matchesBatch = student.student_batches && student.student_batches.length > 0 &&
+          student.student_batches.some((sb: any) => sb.batch?.id === selectedBatch);
+
         return matchesSearch && matchesBatch;
       })
     : staff.filter(staffMember =>
@@ -447,7 +697,7 @@ const AttendanceManagement: React.FC = () => {
   };
 
   const isSelectedDate = (date: Date) => {
-    return date.toISOString().split('T')[0] === selectedDate;
+    return getLocalDateString(date) === selectedDate;
   };
 
   return (
@@ -485,7 +735,7 @@ const AttendanceManagement: React.FC = () => {
                 {generateCalendarDays().map((date, index) => (
                   <button
                     key={index}
-                    onClick={() => setSelectedDate(date.toISOString().split('T')[0])}
+                    onClick={() => setSelectedDate(getLocalDateString(date))}
                     className={`p-2 rounded hover:bg-secondary-200 transition-colors ${
                       isSelectedDate(date)
                         ? 'bg-primary-600 text-white'
@@ -508,9 +758,16 @@ const AttendanceManagement: React.FC = () => {
         <div className="lg:w-2/3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
-              <h2 className="text-xl lg:text-2xl font-bold text-secondary-800">
-                Attendance - {new Date(selectedDate + 'T00:00:00').toLocaleDateString()}
-              </h2>
+              <div>
+                <h2 className="text-xl lg:text-2xl font-bold text-secondary-800">
+                  Attendance - {new Date(selectedDate + 'T12:00:00').toLocaleDateString()}
+                </h2>
+                <p className="text-sm text-secondary-600 mt-1">
+                  Present: <span className="font-semibold text-success-600">
+                    {attendance.filter(a => a.status === 'P').length}
+                  </span> / {attendance.length} {view === 'students' ? 'Students' : 'Staff'}
+                </p>
+              </div>
               <p className="text-sm text-secondary-600 mt-1">Mark attendance for {view}</p>
             </div>
             <div className="flex items-center gap-3">
@@ -556,15 +813,18 @@ const AttendanceManagement: React.FC = () => {
               </div>
 
               {/* Batch Filter for Students */}
-              {view === 'students' && batches.length > 0 && (
+              {view === 'students' && (
                 <select
                   value={selectedBatch}
                   onChange={(e) => setSelectedBatch(e.target.value)}
                   className="border border-secondary-300 rounded-lg px-3 py-2 min-w-[150px]"
                 >
-                  <option value="all">All Batches</option>
+                  <option value="all">All Students</option>
+                  <option value="unassigned">Unassigned Students</option>
                   {batches.map(batch => (
-                    <option key={batch} value={batch}>Batch {batch}</option>
+                    <option key={batch.id} value={batch.id}>
+                      {batch.name} ({batch.academic_year}) - {batch.active_students} students
+                    </option>
                   ))}
                 </select>
               )}
@@ -585,12 +845,11 @@ const AttendanceManagement: React.FC = () => {
                       {view === 'students' ? 'Course' : 'Role'}
                     </th>
                     <th className="py-3 pr-4 font-medium text-secondary-700">Status</th>
-                    <th className="py-3 pr-4 font-medium text-secondary-700">Notes</th>
                     <th className="py-3 pr-4 font-medium text-secondary-700">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredData.map((person, index) => {
+                  {filteredData.map((person) => {
                     const attendanceIndex = attendance.findIndex(a =>
                       view === 'students' ? a.student_id === person.id : a.staff_id === person.id
                     );
@@ -606,7 +865,21 @@ const AttendanceManagement: React.FC = () => {
                         </td>
                         <td className="py-3 pr-4">
                           <div className="text-secondary-700">
-                            {view === 'students' ? person.course?.name || 'No Course' : person.role || 'Staff'}
+                            {view === 'students' ? (
+                              <div>
+                                <div>{person.course?.name || 'No Course'}</div>
+                                {person.student_batches && person.student_batches.length > 0 && (
+                                  <div className="text-xs text-blue-600 mt-1">
+                                    Batch: {person.student_batches[0].batch?.name}
+                                  </div>
+                                )}
+                                {(!person.student_batches || person.student_batches.length === 0) && (
+                                  <div className="text-xs text-orange-600 mt-1">No Batch Assigned</div>
+                                )}
+                              </div>
+                            ) : (
+                              person.role || 'Staff'
+                            )}
                           </div>
                         </td>
                         <td className="py-3 pr-4">
@@ -620,15 +893,7 @@ const AttendanceManagement: React.FC = () => {
                             <option value="H">H - Holiday</option>
                           </select>
                         </td>
-                        <td className="py-3 pr-4">
-                          <input
-                            type="text"
-                            value={record?.notes || ''}
-                            onChange={(e) => updateAttendance(attendanceIndex, 'notes', e.target.value)}
-                            placeholder="Add notes..."
-                            className="w-full px-2 py-1 border border-secondary-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
-                          />
-                        </td>
+
                         <td className="py-3 pr-4">
                           <button
                             onClick={() => handleViewIndividualReport(person)}
@@ -657,14 +922,59 @@ const AttendanceManagement: React.FC = () => {
                 <h2 className="text-2xl font-bold text-secondary-800">
                   Attendance Report - {selectedPerson.first_name} {selectedPerson.last_name}
                 </h2>
-                <p className="text-secondary-600 mt-1">Last 30 days attendance record</p>
+                <p className="text-secondary-600 mt-1">
+                  {reportDateRange.startDate} to {reportDateRange.endDate}
+                </p>
               </div>
-              <button
-                onClick={() => setShowIndividualReport(false)}
-                className="p-2 hover:bg-secondary-100 rounded-xl transition-colors"
-              >
-                <X className="w-6 h-6 text-secondary-500" />
-              </button>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={downloadIndividualReport}
+                  className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span>Download</span>
+                </button>
+                <button
+                  onClick={() => setShowIndividualReport(false)}
+                  className="p-2 hover:bg-secondary-100 rounded-xl transition-colors"
+                >
+                  <X className="w-6 h-6 text-secondary-500" />
+                </button>
+              </div>
+            </div>
+
+            {/* Date Range Filter */}
+            <div className="p-6 border-b border-secondary-200 bg-secondary-50">
+              <div className="flex items-center space-x-4">
+                <div>
+                  <label className="block text-sm font-medium text-secondary-700 mb-1">From Date</label>
+                  <input
+                    type="date"
+                    value={reportDateRange.startDate}
+                    onChange={(e) => setReportDateRange(prev => ({ ...prev, startDate: e.target.value }))}
+                    className="px-3 py-2 border border-secondary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-secondary-700 mb-1">To Date</label>
+                  <input
+                    type="date"
+                    value={reportDateRange.endDate}
+                    onChange={(e) => setReportDateRange(prev => ({ ...prev, endDate: e.target.value }))}
+                    className="px-3 py-2 border border-secondary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+                <div className="pt-6">
+                  <button
+                    onClick={() => fetchIndividualReportData(selectedPerson)}
+                    className="px-4 py-2 bg-secondary-600 text-white rounded-lg hover:bg-secondary-700 transition-colors"
+                  >
+                    Apply Filter
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">

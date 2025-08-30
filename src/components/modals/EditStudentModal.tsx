@@ -164,38 +164,65 @@ const EditStudentModal: React.FC<EditStudentModalProps> = ({
     setError('');
 
     try {
-      // Update student
+      // Update student first
       await DataService.updateStudent(student.id, formData);
 
-      // Update parent if exists
-      if (student.parent_id) {
-        await DataService.updateParent(student.parent_id, parentData);
+      // Update parent if exists and has data
+      if (student.parent_id && (parentData.first_name || parentData.last_name || parentData.email || parentData.phone)) {
+        try {
+          await DataService.updateParent(student.parent_id, parentData);
+        } catch (parentError: any) {
+          // Handle parent-specific errors
+          if (parentError.message.includes('already associated with another parent')) {
+            setError(`Parent email conflict: ${parentError.message}`);
+            return;
+          }
+          throw parentError;
+        }
       }
 
       // Update course enrollments
-      // First, remove all existing enrollments
-      await supabase
-        .from('student_courses')
-        .delete()
-        .eq('student_id', student.id);
-
-      // Then add new enrollments
-      for (const course of selectedCourses) {
+      try {
+        // First, remove all existing enrollments
         await supabase
           .from('student_courses')
-          .insert([{
-            student_id: student.id,
-            course_id: course.id,
-            enrollment_date: formData.enrollment_date,
-            status: 'active'
-          }]);
+          .delete()
+          .eq('student_id', student.id);
+
+        // Then add new enrollments
+        for (const course of selectedCourses) {
+          await supabase
+            .from('student_courses')
+            .insert([{
+              student_id: student.id,
+              course_id: course.id,
+              enrollment_date: formData.enrollment_date,
+              status: 'active'
+            }]);
+        }
+      } catch (courseError: any) {
+        console.warn('Error updating course enrollments:', courseError);
+        // Don't fail the entire update for course enrollment issues
       }
 
       onStudentUpdated();
       onClose();
-      
+
     } catch (error: any) {
-      setError(error.message || 'Failed to update student');
+      console.error('Error updating student:', error);
+
+      // Provide specific error messages
+      if (error.code === '23505') {
+        if (error.message.includes('students_email_key')) {
+          setError('This email is already associated with another student');
+        } else if (error.message.includes('parents_email_key')) {
+          setError('This parent email is already associated with another parent');
+        } else {
+          setError('A record with this information already exists');
+        }
+      } else {
+        setError(error.message || 'Failed to update student');
+      }
     } finally {
       setLoading(false);
     }

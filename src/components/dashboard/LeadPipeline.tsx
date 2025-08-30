@@ -141,6 +141,18 @@ const LeadPipeline: React.FC<LeadPipelineProps> = ({ onAddLead }) => {
 
         if (targetColumn === 'converted') {
           try {
+            // Get lead details for payment link generation
+            const { data: leadData } = await (await import('../../lib/supabase')).supabase
+              .from('leads')
+              .select('*')
+              .eq('id', draggedItem)
+              .single();
+
+            if (!leadData) {
+              console.error('Lead not found');
+              return;
+            }
+
             // Create receipt draft
             const { data: existing } = await (await import('../../lib/supabase')).supabase
               .from('receipts')
@@ -154,25 +166,38 @@ const LeadPipeline: React.FC<LeadPipelineProps> = ({ onAddLead }) => {
                 .insert({ lead_id: draggedItem, amount: 0, tax_rate: 0, total_amount: 0, status: 'draft' });
             }
 
-            // Generate external payment link
-            const { data: linkData, error: linkError } = await (await import('../../lib/supabase')).supabase
-              .rpc('create_payment_link_for_lead', {
-                p_lead_id: draggedItem,
-                p_course_name: null,
-                p_course_fee: null
-              });
+            // Generate external payment link with lead information
+            const token = Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+
+            const { error: linkError } = await (await import('../../lib/supabase')).supabase
+              .from('external_payment_links')
+              .insert([{
+                lead_id: draggedItem,
+                link_token: token,
+                parent_name: `${leadData.first_name} ${leadData.last_name}`,
+                parent_email: leadData.email || '',
+                parent_phone: leadData.phone || '',
+                student_name: `${leadData.first_name} ${leadData.last_name}`,
+                student_class: leadData.grade_level || 'Not specified',
+                course_name: leadData.subjects_interested?.join(', ') || 'Course',
+                course_fee: null, // Will be filled when creating receipt
+                status: 'active',
+                expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days from now
+              }]);
 
             if (linkError) {
               console.warn('Failed to create payment link:', linkError);
-            } else if (linkData && linkData.length > 0) {
-              const paymentUrl = linkData[0].payment_url;
+              alert('Lead converted successfully!\n\nNote: Failed to generate payment link. You can create one manually from External Fee Management.');
+            } else {
+              const paymentUrl = `${window.location.origin}/external-payment/${token}`;
               console.log('Payment link generated:', paymentUrl);
 
               // Show success message with payment link
-              alert(`Lead converted successfully!\n\nExternal Payment Link:\n${paymentUrl}\n\nShare this link with the parent to submit payment information.`);
+              alert(`Lead converted successfully!\n\n🎯 Next Steps:\n1. Complete admission in Receipts section\n2. Share payment link with parent\n\nExternal Payment Link:\n${paymentUrl}\n\n📋 Workflow:\nLead → Receipt (Admission) → External Payment → Student Creation → Fee Management`);
             }
           } catch (e) {
             console.warn('Failed to create receipt draft or payment link for converted lead', e);
+            alert('Lead converted successfully!\n\nNote: Some additional setup may be needed. Please check Receipts section and External Fee Management.');
           }
         }
 

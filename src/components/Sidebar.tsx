@@ -12,7 +12,8 @@ import {
   ChevronRight,
   TrendingUp,
   TrendingDown,
-  Download
+  Download,
+  Mail
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -28,7 +29,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, sidebarOpe
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
 
   const allMenuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: Home, badge: null },
+    { id: 'dashboard', label: 'Dashboard', icon: Home, badge: null }, 
     { id: 'staff', label: 'Staff Management', icon: UserCog, badge: null },
     { id: 'staff-leads', label: 'Staff Lead Tracking', icon: TrendingUp, badge: null },
     { id: 'leads', label: 'Lead Management', icon: Users, badge: null },
@@ -53,8 +54,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, sidebarOpe
         { id: 'accounts-expense', label: 'Expense Reports', icon: TrendingDown }
       ]
     },
-    { id: 'receipts', label: 'Receipts', icon: BarChart3, badge: null },
+    { id: 'receipts', label: 'Complete Registration', icon: BarChart3, badge: null },
     { id: 'fee-receipts', label: 'Fee Receipts', icon: Download, badge: null },
+    { id: 'email-notifications', label: 'Email Notifications', icon: Mail, badge: null },
     { id: 'reports', label: 'Reports & Analytics', icon: BarChart3, badge: null },
     { id: 'settings', label: 'Settings', icon: Settings, badge: null },
   ];
@@ -76,7 +78,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, sidebarOpe
     // 💰 ACCOUNTANT ACCESS - Financial and staff management
     if (userRole === 'accountant' || userEmail.includes('accountant')) {
       return allMenuItems.filter(item =>
-        ['dashboard', 'staff', 'staff-leads', 'leads', 'lead-triage', 'fees', 'external-fees', 'accounts', 'receipts', 'reports'].includes(item.id)
+        ['dashboard', 'staff', 'staff-leads', 'leads', 'lead-triage', 'fees', 'external-fees', 'accounts', 'receipts', 'email-notifications', 'reports'].includes(item.id)
       );
     }
 

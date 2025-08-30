@@ -35,9 +35,17 @@ const ExternalFeeManagement: React.FC = () => {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showLinkModal, setShowLinkModal] = useState(false);
+  const [showFeeDetailsModal, setShowFeeDetailsModal] = useState(false);
   const [editingPayment, setEditingPayment] = useState<ExternalFeePayment | null>(null);
   const [paymentLinks, setPaymentLinks] = useState<any[]>([]);
   const [generatingLink, setGeneratingLink] = useState(false);
+  const [selectedPaymentForLink, setSelectedPaymentForLink] = useState<ExternalFeePayment | null>(null);
+  const [feeDetails, setFeeDetails] = useState({
+    totalFee: '',
+    courseName: '',
+    dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
+    description: ''
+  });
 
   useEffect(() => {
     fetchPayments();
@@ -86,21 +94,88 @@ const ExternalFeeManagement: React.FC = () => {
 
       if (paymentError) throw paymentError;
 
+      // Get current user's staff record
+      const { data: staffRecord } = await supabase
+        .from('staff')
+        .select('id')
+        .eq('email', user?.email)
+        .single();
+
       // Update payment status
       const { error: updateError } = await supabase
         .from('external_fee_payments')
         .update({
           status: newStatus,
-          verified_by: user?.id,
+          verified_by: staffRecord?.id || null,
           verified_at: new Date().toISOString()
         })
         .eq('id', paymentId);
 
       if (updateError) throw updateError;
 
-      // If verified and student_id exists, update student fee records
-      if (newStatus === 'verified' && payment.student_id) {
+      // If verified, handle student creation and fee management
+      if (newStatus === 'verified') {
         try {
+          let studentId = payment.student_id;
+
+          // If no student exists, create one from the payment information
+          if (!studentId) {
+            console.log('Creating new student from payment data...');
+
+            // First, create or get parent record
+            const { data: parentData, error: parentError } = await supabase
+              .from('parents')
+              .upsert({
+                first_name: payment.parent_name?.split(' ')[0] || 'Parent',
+                last_name: payment.parent_name?.split(' ').slice(1).join(' ') || '',
+                email: payment.parent_email || '',
+                phone: payment.parent_phone || '',
+                address: '',
+                occupation: ''
+              }, {
+                onConflict: 'email'
+              })
+              .select()
+              .single();
+
+            if (parentError && parentError.code !== '23505') { // Ignore duplicate key error
+              console.error('Error creating parent:', parentError);
+            }
+
+            // Create student record with ONLY student information
+            const { data: studentData, error: studentError } = await supabase
+              .from('students')
+              .insert([{
+                first_name: payment.student_name.split(' ')[0] || payment.student_name,
+                last_name: payment.student_name.split(' ').slice(1).join(' ') || '',
+                email: '', // Student email should be separate from parent email
+                phone: '', // Student phone should be separate from parent phone
+                grade_level: payment.student_class,
+                parent_id: parentData?.id || null,
+                enrollment_date: payment.payment_date,
+                status: 'active',
+                address: '', // Student address
+                date_of_birth: null, // Will be filled later if needed
+                subjects: [] // Student subjects
+              }])
+              .select()
+              .single();
+
+            if (studentError) {
+              console.error('Error creating student:', studentError);
+              throw studentError;
+            }
+
+            studentId = studentData.id;
+            console.log('✅ Created new student:', studentData.first_name, studentData.last_name);
+
+            // Update the payment record with the new student_id
+            await supabase
+              .from('external_fee_payments')
+              .update({ student_id: studentId })
+              .eq('id', paymentId);
+          }
+
           // Add to income records
           await supabase
             .from('income')
@@ -114,34 +189,28 @@ const ExternalFeeManagement: React.FC = () => {
               image_url: payment.payment_proof_url
             }]);
 
-          // Update student fee status if fee management record exists
-          const { data: feeRecord } = await supabase
-            .from('fee_management')
-            .select('*')
-            .eq('student_id', payment.student_id)
-            .limit(1)
-            .maybeSingle();
+          // Create fee record in the fees table (used by Fee Management)
+          await supabase
+            .from('fees')
+            .insert([{
+              student_id: studentId,
+              course_id: null, // Will be linked if course exists
+              amount: payment.payment_amount,
+              due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
+              status: 'paid', // Since payment is verified
+              payment_date: payment.payment_date,
+              payment_method: payment.payment_method,
+              transaction_id: payment.transaction_id || null,
+              notes: `External payment verified - ${payment.course_name || 'Course fee'}`,
+              created_at: new Date().toISOString()
+            }]);
 
-          if (feeRecord) {
-            const newPaidAmount = (feeRecord.paid_amount || 0) + payment.payment_amount;
-            const newRemainingAmount = Math.max(0, (feeRecord.total_amount || 0) - newPaidAmount);
-            const newStatus = newRemainingAmount === 0 ? 'paid' : 'partial';
+          console.log('✅ Created fee record in fees table');
 
-            await supabase
-              .from('fee_management')
-              .update({
-                paid_amount: newPaidAmount,
-                remaining_amount: newRemainingAmount,
-                status: newStatus,
-                last_payment_date: payment.payment_date
-              })
-              .eq('id', feeRecord.id);
-          }
-
-          console.log('✅ Student fee records updated successfully');
-        } catch (feeError) {
-          console.warn('⚠️ Failed to update student fee records:', feeError);
-          // Don't fail the main operation if fee update fails
+          console.log('✅ Student and fee records processed successfully');
+        } catch (error) {
+          console.error('⚠️ Error processing student/fee records:', error);
+          // Don't fail the main operation if student/fee processing fails
         }
       }
 
@@ -266,6 +335,64 @@ const ExternalFeeManagement: React.FC = () => {
         alert(`Payment link generated!\n\n${paymentUrl}\n\nPlease copy this link manually and share with the parent.`);
       });
 
+      fetchPaymentLinks();
+    } catch (error) {
+      console.error('Error generating payment link:', error);
+      alert('Failed to generate payment link. Please try again.');
+    } finally {
+      setGeneratingLink(false);
+    }
+  };
+
+  const handleGeneratePaymentLink = (payment: ExternalFeePayment) => {
+    setSelectedPaymentForLink(payment);
+    setFeeDetails({
+      totalFee: payment.course_fee?.toString() || '',
+      courseName: payment.course_name || '',
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      description: `Fee payment for ${payment.student_name} - ${payment.course_name || 'Course'}`
+    });
+    setShowFeeDetailsModal(true);
+  };
+
+  const generatePaymentLinkWithFees = async () => {
+    if (!selectedPaymentForLink) return;
+
+    try {
+      setGeneratingLink(true);
+
+      // Generate unique token
+      const token = Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+
+      // Create payment link record with fee details
+      const { error: linkError } = await supabase
+        .from('external_payment_links')
+        .insert([{
+          link_token: token,
+          parent_name: 'Parent', // Will be updated when parent fills the form
+          parent_email: '',
+          parent_phone: '',
+          student_name: selectedPaymentForLink.student_name,
+          student_class: selectedPaymentForLink.student_class,
+          course_name: feeDetails.courseName || selectedPaymentForLink.course_name,
+          course_fee: parseFloat(feeDetails.totalFee) || null,
+          status: 'active',
+          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days from now
+        }]);
+
+      if (linkError) throw linkError;
+
+      const paymentUrl = `${window.location.origin}/external-payment/${token}`;
+
+      // Copy to clipboard
+      navigator.clipboard.writeText(paymentUrl).then(() => {
+        alert(`Payment link generated and copied to clipboard!\n\nFee Details:\n- Course: ${feeDetails.courseName}\n- Total Fee: QAR ${feeDetails.totalFee}\n- Due Date: ${feeDetails.dueDate}\n\nPayment Link:\n${paymentUrl}\n\nShare this link with the parent to submit payment information.`);
+      }).catch(() => {
+        alert(`Payment link generated!\n\nFee Details:\n- Course: ${feeDetails.courseName}\n- Total Fee: QAR ${feeDetails.totalFee}\n\nPayment Link:\n${paymentUrl}\n\nPlease copy this link manually and share with the parent.`);
+      });
+
+      setShowFeeDetailsModal(false);
+      setSelectedPaymentForLink(null);
       fetchPaymentLinks();
     } catch (error) {
       console.error('Error generating payment link:', error);
@@ -484,9 +611,9 @@ const ExternalFeeManagement: React.FC = () => {
                       </button>
 
                       <button
-                        onClick={() => generatePaymentLink(payment.student_name, payment.student_class, payment.course_name, payment.course_fee)}
+                        onClick={() => handleGeneratePaymentLink(payment)}
                         className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-                        title="Generate Payment Link"
+                        title="Generate Payment Link with Fee Details"
                         disabled={generatingLink}
                       >
                         <Link className="w-4 h-4" />
@@ -937,6 +1064,112 @@ const ExternalFeeManagement: React.FC = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Fee Details Modal */}
+      {showFeeDetailsModal && selectedPaymentForLink && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-large max-w-md w-full">
+            <div className="flex items-center justify-between p-6 border-b border-secondary-200">
+              <h3 className="text-xl font-bold text-secondary-800">Enter Fee Details</h3>
+              <button
+                onClick={() => {
+                  setShowFeeDetailsModal(false);
+                  setSelectedPaymentForLink(null);
+                }}
+                className="p-2 hover:bg-secondary-100 rounded-lg transition-colors"
+              >
+                <XCircle className="w-6 h-6 text-secondary-600" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-primary-50 border border-primary-200 rounded-lg p-4 mb-4">
+                <h4 className="font-semibold text-primary-800 mb-2">Student Information</h4>
+                <p className="text-sm text-primary-700">
+                  <strong>Name:</strong> {selectedPaymentForLink.student_name}
+                </p>
+                <p className="text-sm text-primary-700">
+                  <strong>Class:</strong> {selectedPaymentForLink.student_class}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-secondary-700 mb-2">
+                  Course Name *
+                </label>
+                <input
+                  type="text"
+                  value={feeDetails.courseName}
+                  onChange={(e) => setFeeDetails({...feeDetails, courseName: e.target.value})}
+                  className="w-full px-3 py-2 border border-secondary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  placeholder="e.g., Mathematics Advanced"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-secondary-700 mb-2">
+                  Total Fee Amount (QAR) *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={feeDetails.totalFee}
+                  onChange={(e) => setFeeDetails({...feeDetails, totalFee: e.target.value})}
+                  className="w-full px-3 py-2 border border-secondary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  placeholder="0.00"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-secondary-700 mb-2">
+                  Due Date
+                </label>
+                <input
+                  type="date"
+                  value={feeDetails.dueDate}
+                  onChange={(e) => setFeeDetails({...feeDetails, dueDate: e.target.value})}
+                  className="w-full px-3 py-2 border border-secondary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-secondary-700 mb-2">
+                  Description
+                </label>
+                <textarea
+                  value={feeDetails.description}
+                  onChange={(e) => setFeeDetails({...feeDetails, description: e.target.value})}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-secondary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+                  placeholder="Additional details about the fee..."
+                />
+              </div>
+
+              <div className="flex justify-end space-x-4 pt-4 border-t border-secondary-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowFeeDetailsModal(false);
+                    setSelectedPaymentForLink(null);
+                  }}
+                  className="px-4 py-2 border border-secondary-300 text-secondary-700 rounded-lg hover:bg-secondary-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={generatePaymentLinkWithFees}
+                  disabled={!feeDetails.courseName || !feeDetails.totalFee || generatingLink}
+                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {generatingLink ? 'Generating...' : 'Generate Payment Link'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

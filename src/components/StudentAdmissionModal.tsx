@@ -43,7 +43,7 @@ const StudentAdmissionModal: React.FC<StudentAdmissionModalProps> = ({
     subjects: leadData?.subjects_interested || [],
     photo_url: '',
     enrollment_date: new Date().toISOString().slice(0, 10),
-    status: 'active'
+    status: "active" as "active"
   });
 
   // Parent form data

@@ -25,6 +25,7 @@ import ExpenseReports from './components/ExpenseReports';
 import Receipts from './components/Receipts';
 import FeeReceipts from './components/FeeReceipts';
 import FeeReminder from './components/FeeReminder';
+import EmailNotificationManager from './components/EmailNotificationManager';
 import ExternalPaymentForm from './components/ExternalPaymentForm';
 
 // Main App Content Component
@@ -101,6 +102,7 @@ const AppContent: React.FC = () => {
             {activeView === 'receipts' && <Receipts />}
             {activeView === 'fee-receipts' && <FeeReceipts />}
             {activeView === 'fee-reminder' && <FeeReminder />}
+            {activeView === 'email-notifications' && <EmailNotificationManager />}
             {activeView === 'reports' && <Reports />}
             {activeView === 'settings' && <div className="text-center py-12"><h2 className="text-2xl font-bold text-secondary-600">Settings - Coming Soon</h2></div>}
           </div>

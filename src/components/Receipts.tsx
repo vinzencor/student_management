@@ -174,7 +174,7 @@ const Receipts: React.FC = () => {
   return (
     <div className="bg-white rounded-xl border border-secondary-200 p-4 lg:p-6 shadow-soft">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl lg:text-2xl font-bold text-secondary-800">Receipts</h2>
+        <h2 className="text-xl lg:text-2xl font-bold text-secondary-800">Complete Registration</h2>
         <button className="px-3 py-2 rounded-lg bg-primary-600 text-white" onClick={() => setEditing({ lead_id: '', amount_paying: 0, total_amount: 0, status: 'draft' })}>New Receipt</button>
       </div>
 

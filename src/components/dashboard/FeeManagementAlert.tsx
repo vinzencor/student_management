@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, DollarSign, User, Clock, Mail, Send, Eye, RefreshCw } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { EmailNotificationService } from '../../services/emailNotificationService';
 
 interface StudentWithFees {
   id: string;
@@ -33,6 +34,7 @@ const FeeManagementAlert: React.FC<FeeManagementAlertProps> = ({ setActiveView }
   const [loading, setLoading] = useState(true);
   const [showAll, setShowAll] = useState(false);
   const [sendingReminders, setSendingReminders] = useState<Set<string>>(new Set());
+  const [sendingBulkReminders, setSendingBulkReminders] = useState(false);
 
   useEffect(() => {
     loadStudentsWithUnpaidFees();
@@ -213,13 +215,25 @@ const FeeManagementAlert: React.FC<FeeManagementAlertProps> = ({ setActiveView }
     try {
       setSendingReminders(prev => new Set(prev).add(student.id));
 
-      // Simulate email sending (in real app, integrate with email service)
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Send actual email using the email notification service
+      const result = await EmailNotificationService.sendFeeReminder({
+        type: 'monthly_reminder',
+        studentId: student.id,
+        parentEmail: student.parent?.email,
+        studentEmail: student.email
+      });
 
-      alert(`Fee reminder sent to ${student.parent?.email || student.email}`);
-    } catch (error) {
+      if (result.success) {
+        alert(`✅ Fee reminder sent successfully to ${student.parent?.email || student.email}!`);
+
+        // Optionally refresh the data to show updated status
+        await loadStudentsWithUnpaidFees();
+      } else {
+        alert(`❌ Failed to send reminder: ${result.error}`);
+      }
+    } catch (error: any) {
       console.error('Error sending reminder:', error);
-      alert('Failed to send reminder. Please try again.');
+      alert(`❌ Failed to send reminder: ${error.message || 'Unknown error'}`);
     } finally {
       setSendingReminders(prev => {
         const newSet = new Set(prev);
@@ -229,8 +243,54 @@ const FeeManagementAlert: React.FC<FeeManagementAlertProps> = ({ setActiveView }
     }
   };
 
+  const sendBulkReminders = async () => {
+    try {
+      setSendingBulkReminders(true);
+
+      const studentsWithEmails = students.filter(s => s.email || s.parent?.email);
+      let successCount = 0;
+      let failCount = 0;
+
+      // Send reminders to all students with emails
+      for (const student of studentsWithEmails) {
+        try {
+          const result = await EmailNotificationService.sendFeeReminder({
+            type: 'monthly_reminder',
+            studentId: student.id,
+            parentEmail: student.parent?.email,
+            studentEmail: student.email
+          });
+
+          if (result.success) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch (error) {
+          console.error(`Failed to send reminder to ${student.first_name} ${student.last_name}:`, error);
+          failCount++;
+        }
+
+        // Small delay between emails to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      alert(`✅ Bulk reminders completed!\n✅ Sent: ${successCount}\n❌ Failed: ${failCount}`);
+
+      // Refresh the data
+      await loadStudentsWithUnpaidFees();
+    } catch (error: any) {
+      console.error('Error sending bulk reminders:', error);
+      alert(`❌ Failed to send bulk reminders: ${error.message || 'Unknown error'}`);
+    } finally {
+      setSendingBulkReminders(false);
+    }
+  };
+
   const overdueStudents = students.filter(s => s.status === 'overdue');
   const pendingStudents = students.filter(s => s.status === 'pending');
+  const studentsWithEmails = students.filter(s => s.email || s.parent?.email);
+  const studentsWithoutEmails = students.filter(s => !s.email && !s.parent?.email);
   const displayStudents = showAll ? students : students.slice(0, 5);
 
   if (loading) {
@@ -267,7 +327,7 @@ const FeeManagementAlert: React.FC<FeeManagementAlertProps> = ({ setActiveView }
           <div>
             <h2 className="text-xl font-bold text-secondary-800">Fee Management Alert</h2>
             <p className="text-secondary-600 text-sm">
-              {overdueStudents.length} overdue • {pendingStudents.length} pending
+              {overdueStudents.length} overdue • {pendingStudents.length} pending • {studentsWithEmails.length} with email
             </p>
           </div>
         </div>
@@ -353,18 +413,27 @@ const FeeManagementAlert: React.FC<FeeManagementAlertProps> = ({ setActiveView }
               </div>
 
               <div className="flex items-center space-x-2 ml-4">
-                <button
-                  onClick={() => sendQuickReminder(student)}
-                  disabled={sendingReminders.has(student.id) || (!student.email && !student.parent?.email)}
-                  className="flex items-center space-x-1 bg-primary-600 hover:bg-primary-700 text-white px-3 py-2 rounded-lg transition-colors text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {sendingReminders.has(student.id) ? (
-                    <RefreshCw className="w-3 h-3 animate-spin" />
-                  ) : (
-                    <Send className="w-3 h-3" />
-                  )}
-                  <span className="hidden sm:inline">Remind</span>
-                </button>
+                {(!student.email && !student.parent?.email) ? (
+                  <div className="text-xs text-secondary-500 px-3 py-2">
+                    No Email
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => sendQuickReminder(student)}
+                    disabled={sendingReminders.has(student.id) || sendingBulkReminders}
+                    className="flex items-center space-x-1 bg-primary-600 hover:bg-primary-700 text-white px-3 py-2 rounded-lg transition-colors text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={`Send reminder to ${student.parent?.email || student.email}`}
+                  >
+                    {sendingReminders.has(student.id) ? (
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Send className="w-3 h-3" />
+                    )}
+                    <span className="hidden sm:inline">
+                      {sendingReminders.has(student.id) ? 'Sending...' : 'Remind'}
+                    </span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -395,11 +464,22 @@ const FeeManagementAlert: React.FC<FeeManagementAlertProps> = ({ setActiveView }
           </button>
           
           <button
-            onClick={() => setActiveView?.('fee-reminder')}
-            className="flex items-center space-x-2 bg-secondary-100 hover:bg-secondary-200 text-secondary-700 px-3 py-2 rounded-lg transition-colors text-sm font-medium"
+            onClick={sendBulkReminders}
+            disabled={sendingBulkReminders || studentsWithEmails.length === 0}
+            className="flex items-center space-x-2 bg-primary-600 hover:bg-primary-700 text-white px-3 py-2 rounded-lg transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            title={`Send reminders to ${studentsWithEmails.length} students with email addresses`}
           >
-            <Mail className="w-4 h-4" />
-            <span>Send Bulk Reminders</span>
+            {sendingBulkReminders ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <Mail className="w-4 h-4" />
+            )}
+            <span>
+              {sendingBulkReminders
+                ? 'Sending...'
+                : `Send Bulk Reminders (${studentsWithEmails.length})`
+              }
+            </span>
           </button>
         </div>
       </div>

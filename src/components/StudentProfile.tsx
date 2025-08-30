@@ -266,13 +266,15 @@ const StudentProfile: React.FC<StudentProfileProps> = ({ onNavigateToFeeReceipts
             </div>
 
             <div className="space-y-2 mb-4">
-              {student.email && (
+              {/* Only show student email if it exists and is not empty */}
+              {student.email && student.email.trim() !== '' && (
                 <div className="flex items-center text-sm text-secondary-600">
                   <Mail className="w-4 h-4 mr-2 flex-shrink-0" />
                   <span className="truncate">{student.email}</span>
                 </div>
               )}
-              {student.phone && (
+              {/* Only show student phone if it exists and is not empty */}
+              {student.phone && student.phone.trim() !== '' && (
                 <div className="flex items-center text-sm text-secondary-600">
                   <Phone className="w-4 h-4 mr-2 flex-shrink-0" />
                   <span>{student.phone}</span>
@@ -282,6 +284,13 @@ const StudentProfile: React.FC<StudentProfileProps> = ({ onNavigateToFeeReceipts
                 <Calendar className="w-4 h-4 mr-2 flex-shrink-0" />
                 <span>Enrolled: {new Date(student.enrollment_date).toLocaleDateString()}</span>
               </div>
+              {/* Show parent contact info if student contact info is not available */}
+              {(!student.email || student.email.trim() === '') && (!student.phone || student.phone.trim() === '') && (student as any).parent && (
+                <div className="flex items-center text-sm text-secondary-500 italic">
+                  <User className="w-4 h-4 mr-2 flex-shrink-0" />
+                  <span className="truncate">Parent: {(student as any).parent.first_name} {(student as any).parent.last_name}</span>
+                </div>
+              )}
               {student.subjects && student.subjects.length > 0 && (
                 <div className="flex items-start text-sm text-secondary-600">
                   <BookOpen className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
@@ -483,6 +492,41 @@ const StudentProfile: React.FC<StudentProfileProps> = ({ onNavigateToFeeReceipts
                   </div>
                 </div>
               </div>
+
+              {/* Parent Information */}
+              {(selectedStudent as any).parent && (
+                <div>
+                  <h3 className="text-lg font-semibold text-secondary-800 mb-4">Parent/Guardian Information</h3>
+                  <div className="bg-secondary-50 border border-secondary-200 rounded-lg p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-secondary-600">Parent Name</p>
+                        <p className="font-medium text-secondary-800">
+                          {(selectedStudent as any).parent.first_name} {(selectedStudent as any).parent.last_name}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-secondary-600">Email</p>
+                        <p className="font-medium text-secondary-800">
+                          {(selectedStudent as any).parent.email || 'Not provided'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-secondary-600">Phone</p>
+                        <p className="font-medium text-secondary-800">
+                          {(selectedStudent as any).parent.phone || 'Not provided'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-secondary-600">Address</p>
+                        <p className="font-medium text-secondary-800">
+                          {(selectedStudent as any).parent.address || 'Not provided'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Enrolled Courses */}
               <div>

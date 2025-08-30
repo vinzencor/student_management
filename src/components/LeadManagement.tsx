@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Plus,
   Search,
@@ -17,7 +17,9 @@ import {
   Download,
   CalendarRange,
   Trash2,
-  Users
+  Users,
+  Upload,
+  FileSpreadsheet
 } from 'lucide-react';
 import { DataService } from '../services/dataService';
 import type { Lead } from '../lib/supabase';
@@ -40,6 +42,9 @@ const LeadManagement: React.FC = () => {
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   const [showBulkAssign, setShowBulkAssign] = useState(false);
   const [staff, setStaff] = useState<any[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchLeads();
@@ -117,6 +122,164 @@ const LeadManagement: React.FC = () => {
     } finally {
       setDownloading(false);
     }
+  };
+
+  const mapSourceValue = (source: string): 'website' | 'referral' | 'social_media' | 'walk_in' | 'other' => {
+    const lowerSource = source.toLowerCase();
+    if (lowerSource.includes('website') || lowerSource.includes('online')) return 'website';
+    if (lowerSource.includes('referral') || lowerSource.includes('refer')) return 'referral';
+    if (lowerSource.includes('social') || lowerSource.includes('facebook') || lowerSource.includes('instagram')) return 'social_media';
+    if (lowerSource.includes('walk') || lowerSource.includes('visit')) return 'walk_in';
+    return 'other';
+  };
+
+  const mapStatusValue = (status: string): 'new' | 'contacted' | 'interested' | 'converted' | 'lost' => {
+    // For imported leads, we want them all to start as 'new' so they appear in new enquiry section
+    // Only map to other statuses if explicitly specified
+    const lowerStatus = status.toLowerCase();
+    if (lowerStatus === 'contacted') return 'contacted';
+    if (lowerStatus === 'converted') return 'converted';
+    if (lowerStatus === 'lost') return 'lost';
+    // Default all imported leads to 'new' status (including 'interested', 'hot', 'cold', etc.)
+    return 'new';
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.csv') && !file.name.endsWith('.xlsx')) {
+      alert('Please upload a CSV or Excel file');
+      return;
+    }
+
+    try {
+      setImporting(true);
+      const text = await file.text();
+      const lines = text.split('\n').filter(line => line.trim());
+
+      if (lines.length < 2) {
+        alert('File must contain at least a header row and one data row');
+        return;
+      }
+
+      // Parse CSV with better handling of quoted values
+      const parseCSVLine = (line: string): string[] => {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            result.push(current.trim());
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        result.push(current.trim());
+        return result;
+      };
+
+      const headers = parseCSVLine(lines[0]);
+      const dataRows = lines.slice(1);
+
+      const importedLeads = [];
+
+      for (const row of dataRows) {
+        const values = parseCSVLine(row);
+
+        if (values.length < 2) continue; // Skip rows with less than 2 values (need at least first_name, last_name)
+
+        const leadData: any = {};
+        headers.forEach((header, index) => {
+          leadData[header] = values[index] || '';
+        });
+
+        // Validate required fields
+        if (!leadData.first_name || !leadData.last_name || !leadData.first_name.trim() || !leadData.last_name.trim()) {
+          console.warn('Skipping row - missing or empty first_name or last_name:', leadData);
+          continue;
+        }
+
+        // Map the data to our lead structure (only fields that exist in database)
+        const lead = {
+          first_name: leadData.first_name.trim(),
+          last_name: leadData.last_name.trim(),
+          email: leadData.email ? leadData.email.trim() : undefined,
+          phone: leadData.phone ? leadData.phone.trim() : '',
+          grade_level: leadData.grade_level ? leadData.grade_level.trim() : undefined,
+          subjects_interested: leadData.subjects_interested ?
+            leadData.subjects_interested.split(/[,;]/).map((s: string) => s.trim()).filter(Boolean) : [],
+          source: mapSourceValue(leadData.source || 'other'),
+          status: mapStatusValue(leadData.status || 'new'),
+          notes: [
+            leadData.remarks || '',
+            leadData.parent_name ? `Parent: ${leadData.parent_name}` : '',
+            leadData.parent_phone ? `Parent Phone: ${leadData.parent_phone}` : '',
+            leadData.parent_email ? `Parent Email: ${leadData.parent_email}` : '',
+            leadData.address ? `Address: ${leadData.address}` : ''
+          ].filter(Boolean).join(' | '),
+          priority: 'cold' as const,
+          tags: [],
+          assigned_staff_id: undefined,
+          assigned_counselor: undefined,
+          follow_up_date: undefined
+        };
+
+        importedLeads.push(lead);
+      }
+
+      if (importedLeads.length === 0) {
+        alert('No valid lead data found in the file');
+        return;
+      }
+
+      // Save leads to database
+      for (const lead of importedLeads) {
+        await DataService.createLead(lead);
+      }
+
+      alert(`Successfully imported ${importedLeads.length} leads!`);
+      await fetchLeads(); // Refresh the leads list
+
+    } catch (error) {
+      console.error('Error importing leads:', error);
+      alert('Error importing leads. Please check the file format.');
+    } finally {
+      setImporting(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const downloadSampleTemplate = () => {
+    const sampleData = [
+      'first_name,last_name,email,phone,grade_level,subjects_interested,source,status,remarks,parent_name,parent_phone,parent_email,address',
+      'Ahmed,Ali,ahmed.ali@email.com,+974-1234-5678,Grade 10,Mathematics;Physics;Chemistry,website,new,Interested in science subjects,Mohammed Ali,+974-9876-5432,mohammed.ali@email.com,Doha Qatar',
+      'Sara,Khan,sara.khan@email.com,+974-2345-6789,Grade 9,English;Arabic;History,social_media,new,Looking for language courses,Fatima Khan,+974-8765-4321,fatima.khan@email.com,Al Rayyan Qatar',
+      'Omar,Hassan,omar.hassan@email.com,+974-3456-7890,Grade 11,Computer Science;Mathematics,referral,new,Wants to pursue engineering,Hassan Omar,+974-7654-3210,hassan.omar@email.com,Al Wakrah Qatar'
+    ].join('\n');
+
+    const blob = new Blob([sampleData], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'sample-leads-import-template.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const filteredLeads = leads.filter(lead => {
@@ -283,13 +446,44 @@ const LeadManagement: React.FC = () => {
           <h1 className="text-3xl font-bold text-secondary-800">Lead Management</h1>
           <p className="text-secondary-600 mt-1">Track and manage your student inquiries</p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center space-x-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2.5 rounded-xl transition-colors shadow-soft hover:shadow-medium"
-        >
-          <Plus className="w-5 h-5" />
-          <span className="font-medium">Add New Lead</span>
-        </button>
+        <div className="flex items-center space-x-3">
+          {/* Import Buttons */}
+          <button
+            onClick={downloadSampleTemplate}
+            className="flex items-center space-x-2 bg-secondary-600 hover:bg-secondary-700 text-white px-4 py-2.5 rounded-xl transition-colors shadow-soft hover:shadow-medium"
+          >
+            <FileSpreadsheet className="w-5 h-5" />
+            <span className="font-medium">Download Template</span>
+          </button>
+
+          <button
+            onClick={handleImportClick}
+            disabled={importing}
+            className="flex items-center space-x-2 bg-success-600 hover:bg-success-700 text-white px-4 py-2.5 rounded-xl transition-colors shadow-soft hover:shadow-medium disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Upload className="w-5 h-5" />
+            <span className="font-medium">
+              {importing ? 'Importing...' : 'Import Leads'}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center space-x-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2.5 rounded-xl transition-colors shadow-soft hover:shadow-medium"
+          >
+            <Plus className="w-5 h-5" />
+            <span className="font-medium">Add New Lead</span>
+          </button>
+
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            onChange={handleFileUpload}
+            style={{ display: 'none' }}
+          />
+        </div>
       </div>
 
       {/* Stats Cards */}

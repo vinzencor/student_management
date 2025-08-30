@@ -89,25 +89,81 @@ export class DataService {
   }
 
   static async createParent(parent: Omit<Parent, 'id' | 'created_at' | 'updated_at'>) {
-    const { data, error } = await supabase
-      .from('parents')
-      .insert(parent)
-      .select()
-      .single()
+    try {
+      // Clean up email field - convert empty strings to null
+      const cleanParent = {
+        ...parent,
+        email: parent.email?.trim() || null
+      };
 
-    if (error) throw error
-    return data
+      const { data, error } = await supabase
+        .from('parents')
+        .insert(cleanParent)
+        .select()
+        .single();
+
+      if (error) {
+        // Handle specific constraint violations
+        if (error.code === '23505') {
+          if (error.message.includes('parents_email_unique_idx')) {
+            throw new Error(`Email ${parent.email} is already associated with another parent`);
+          }
+          throw new Error('A parent with this information already exists');
+        }
+        throw error;
+      }
+
+      return data;
+    } catch (error: any) {
+      console.error('Error creating parent:', error);
+      throw error;
+    }
   }
 
   static async updateParent(id: string, updates: Partial<Parent>) {
-    const { data, error } = await supabase
-      .from('parents')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single()
-    if (error) throw error
-    return data
+    try {
+      // Clean up email field - convert empty strings to null
+      if (updates.email !== undefined) {
+        updates.email = updates.email?.trim() || null;
+      }
+
+      // If email is being updated to a non-null value, check if it already exists
+      if (updates.email) {
+        const { data: existingParent } = await supabase
+          .from('parents')
+          .select('id, email, first_name, last_name')
+          .eq('email', updates.email)
+          .neq('id', id)
+          .maybeSingle();
+
+        if (existingParent) {
+          throw new Error(`Email ${updates.email} is already associated with ${existingParent.first_name} ${existingParent.last_name}`);
+        }
+      }
+
+      const { data, error } = await supabase
+        .from('parents')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        // Handle specific constraint violations
+        if (error.code === '23505') {
+          if (error.message.includes('parents_email_unique_idx')) {
+            throw new Error(`Email ${updates.email} is already associated with another parent`);
+          }
+          throw new Error('A parent with this information already exists');
+        }
+        throw error;
+      }
+
+      return data;
+    } catch (error: any) {
+      console.error('Error updating parent:', error);
+      throw error;
+    }
   }
 
   // Leads
