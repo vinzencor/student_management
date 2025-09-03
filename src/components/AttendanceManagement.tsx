@@ -273,30 +273,65 @@ const AttendanceManagement: React.FC = () => {
             })
             .eq('id', record.id);
         } else {
-          // Insert new record immediately
-          const { data: insertedData, error: insertError } = await supabase
-            .from('attendance')
-            .insert({
-              date: record.date,
-              student_id: record.student_id || null,
-              staff_id: record.staff_id || null,
-              status: record.status,
-              notes: record.notes || null
-            })
-            .select()
-            .single();
+          // Insert new record immediately - handle duplicates
+          try {
+            // First check if record already exists
+            const { data: existingRecord } = await supabase
+              .from('attendance')
+              .select('*')
+              .eq('date', record.date)
+              .eq(view === 'students' ? 'student_id' : 'staff_id',
+                  view === 'students' ? record.student_id : record.staff_id)
+              .maybeSingle();
 
-          if (insertError) {
-            console.error('Error auto-saving attendance:', insertError);
-          } else if (insertedData) {
-            // Update the local record with the new ID
-            updated[index] = { ...updated[index], id: insertedData.id };
-            setAttendance([...updated]);
+            if (existingRecord) {
+              // Update existing record
+              const { data: updatedData, error: updateError } = await supabase
+                .from('attendance')
+                .update({
+                  status: record.status,
+                  notes: record.notes || null
+                })
+                .eq('id', existingRecord.id)
+                .select()
+                .single();
 
-            // Check for attendance-based email triggers if status is 'P' (Present)
-            if (record.status === 'P' && record.student_id) {
-              checkAttendanceEmailTrigger(record.student_id);
+              if (updateError) {
+                console.error('Error updating existing attendance:', updateError);
+              } else if (updatedData) {
+                // Update the local record with the existing ID
+                updated[index] = { ...updated[index], id: updatedData.id };
+                setAttendance([...updated]);
+              }
+            } else {
+              // Insert new record
+              const { data: insertedData, error: insertError } = await supabase
+                .from('attendance')
+                .insert({
+                  date: record.date,
+                  student_id: record.student_id || null,
+                  staff_id: record.staff_id || null,
+                  status: record.status,
+                  notes: record.notes || null
+                })
+                .select()
+                .single();
+
+              if (insertError) {
+                console.error('Error auto-saving attendance:', insertError);
+              } else if (insertedData) {
+                // Update the local record with the new ID
+                updated[index] = { ...updated[index], id: insertedData.id };
+                setAttendance([...updated]);
+
+                // Check for attendance-based email triggers if status is 'P' (Present)
+                if (record.status === 'P' && record.student_id) {
+                  checkAttendanceEmailTrigger(record.student_id);
+                }
+              }
             }
+          } catch (error) {
+            console.error('Error handling attendance auto-save:', error);
           }
         }
 
@@ -334,22 +369,51 @@ const AttendanceManagement: React.FC = () => {
             throw updateError;
           }
         } else {
-          // Insert new record - use upsert to handle duplicates
-          const { error: insertError } = await supabase
-            .from('attendance')
-            .upsert({
-              date: record.date,
-              student_id: record.student_id || null,
-              staff_id: record.staff_id || null,
-              status: record.status,
-              notes: record.notes || null
-            }, {
-              onConflict: view === 'students' ? 'date,student_id' : 'date,staff_id'
-            });
+          // Insert new record - handle duplicates manually
+          try {
+            // First try to find existing record
+            const { data: existingRecord } = await supabase
+              .from('attendance')
+              .select('id')
+              .eq('date', record.date)
+              .eq(view === 'students' ? 'student_id' : 'staff_id',
+                  view === 'students' ? record.student_id : record.staff_id)
+              .maybeSingle();
 
-          if (insertError) {
-            console.error('Error inserting record:', insertError);
-            throw insertError;
+            if (existingRecord) {
+              // Update existing record
+              const { error: updateError } = await supabase
+                .from('attendance')
+                .update({
+                  status: record.status,
+                  notes: record.notes || null
+                })
+                .eq('id', existingRecord.id);
+
+              if (updateError) {
+                console.error('Error updating existing record:', updateError);
+                throw updateError;
+              }
+            } else {
+              // Insert new record
+              const { error: insertError } = await supabase
+                .from('attendance')
+                .insert({
+                  date: record.date,
+                  student_id: record.student_id || null,
+                  staff_id: record.staff_id || null,
+                  status: record.status,
+                  notes: record.notes || null
+                });
+
+              if (insertError) {
+                console.error('Error inserting record:', insertError);
+                throw insertError;
+              }
+            }
+          } catch (error) {
+            console.error('Error handling attendance record:', error);
+            throw error;
           }
         }
       }
