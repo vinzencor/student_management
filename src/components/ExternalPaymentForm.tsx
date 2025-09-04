@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, DollarSign, User, Phone, Mail, BookOpen, Calendar, CheckCircle, AlertCircle, Clock } from 'lucide-react';
+import { Upload, DollarSign, User, Phone, Mail, BookOpen, Calendar, CheckCircle, AlertCircle, Clock, Copy } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface PaymentLinkDetails {
@@ -27,6 +27,7 @@ const ExternalPaymentForm: React.FC<ExternalPaymentFormProps> = ({ token }) => {
   const [submitted, setSubmitted] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [error, setError] = useState('');
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     parent_name: '',
@@ -43,6 +44,16 @@ const ExternalPaymentForm: React.FC<ExternalPaymentFormProps> = ({ token }) => {
   useEffect(() => {
     fetchLinkDetails();
   }, [token]);
+
+  const copyToClipboard = async (text: string, fieldName: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(fieldName);
+      setTimeout(() => setCopiedField(null), 2000); // Clear after 2 seconds
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+    }
+  };
 
   const fetchLinkDetails = async () => {
     try {
@@ -416,6 +427,104 @@ const ExternalPaymentForm: React.FC<ExternalPaymentFormProps> = ({ token }) => {
             </div>
 
             <h2 className="text-lg font-semibold text-secondary-800">Payment Information</h2>
+
+            {/* Bank Details Section */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+              <h3 className="text-md font-semibold text-blue-800 mb-4 flex items-center">
+                <DollarSign className="w-5 h-5 mr-2" />
+                Bank Transfer Details
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div className="space-y-3">
+                  <div>
+                    <p className="font-medium text-blue-700">Bank Name:</p>
+                    <div className="flex items-center justify-between bg-white p-2 rounded border">
+                      <p className="text-blue-900 font-semibold">CBQ (Commercial Bank of Qatar)</p>
+                      <button
+                        onClick={() => copyToClipboard('CBQ', 'bank_name')}
+                        className="text-blue-600 hover:text-blue-800 p-1"
+                        title="Copy bank name"
+                      >
+                        {copiedField === 'bank_name' ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="font-medium text-blue-700">Account Name:</p>
+                    <div className="flex items-center justify-between bg-white p-2 rounded border">
+                      <p className="text-blue-900 font-semibold">SAKIRMYNA QFZLLC</p>
+                      <button
+                        onClick={() => copyToClipboard('SAKIRMYNA QFZLLC', 'account_name')}
+                        className="text-blue-600 hover:text-blue-800 p-1"
+                        title="Copy account name"
+                      >
+                        {copiedField === 'account_name' ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="font-medium text-blue-700">Account Number:</p>
+                    <div className="flex items-center justify-between bg-white p-2 rounded border">
+                      <p className="text-blue-900 font-mono font-semibold">4680689838001</p>
+                      <button
+                        onClick={() => copyToClipboard('4680689838001', 'account_number')}
+                        className="text-blue-600 hover:text-blue-800 p-1"
+                        title="Copy account number"
+                      >
+                        {copiedField === 'account_number' ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <p className="font-medium text-blue-700">IBAN Number:</p>
+                    <div className="flex items-center justify-between bg-white p-2 rounded border">
+                      <p className="text-blue-900 font-mono font-semibold text-xs">QA87CBQAOOOO00004680689838001</p>
+                      <button
+                        onClick={() => copyToClipboard('QA87CBQAOOOO00004680689838001', 'iban')}
+                        className="text-blue-600 hover:text-blue-800 p-1 ml-2"
+                        title="Copy IBAN number"
+                      >
+                        {copiedField === 'iban' ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="font-medium text-blue-700">SWIFT Code:</p>
+                    <div className="flex items-center justify-between bg-white p-2 rounded border">
+                      <p className="text-blue-900 font-mono font-semibold">CBQAQAQA</p>
+                      <button
+                        onClick={() => copyToClipboard('CBQAQAQA', 'swift')}
+                        className="text-blue-600 hover:text-blue-800 p-1"
+                        title="Copy SWIFT code"
+                      >
+                        {copiedField === 'swift' ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={() => copyToClipboard(`Bank: CBQ (Commercial Bank of Qatar)
+Account Name: SAKIRMYNA QFZLLC
+Account Number: 4680689838001
+IBAN: QA87CBQAOOOO00004680689838001
+SWIFT: CBQAQAQA`, 'all_details')}
+                  className="flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+                >
+                  {copiedField === 'all_details' ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  <span>{copiedField === 'all_details' ? 'Copied!' : 'Copy All Details'}</span>
+                </button>
+                <div className="flex-1 p-3 bg-blue-100 rounded-lg">
+                  <p className="text-blue-800 text-sm">
+                    <strong>Note:</strong> Please use the above bank details for making your payment.
+                    After payment, fill out the form below with your payment details and upload the receipt.
+                  </p>
+                </div>
+              </div>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>

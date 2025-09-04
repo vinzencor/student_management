@@ -118,92 +118,221 @@ const ExternalFeeManagement: React.FC = () => {
         try {
           let studentId = payment.student_id;
 
-          // If no student exists, create one from the payment information
+          // If no student exists, try to find existing student first
           if (!studentId) {
-            console.log('Creating new student from payment data...');
+            console.log('Looking for existing student...');
 
-            // First, create or get parent record
-            const { data: parentData, error: parentError } = await supabase
-              .from('parents')
-              .upsert({
-                first_name: payment.parent_name?.split(' ')[0] || 'Parent',
-                last_name: payment.parent_name?.split(' ').slice(1).join(' ') || '',
-                email: payment.parent_email || '',
-                phone: payment.parent_phone || '',
-                address: '',
-                occupation: ''
-              }, {
-                onConflict: 'email'
-              })
-              .select()
-              .single();
+            // Try to find existing student by name and grade
+            const nameParts = payment.student_name.trim().split(' ');
+            const firstName = nameParts[0];
+            const lastName = nameParts.slice(1).join(' ');
 
-            if (parentError && parentError.code !== '23505') { // Ignore duplicate key error
-              console.error('Error creating parent:', parentError);
-            }
-
-            // Create student record with ONLY student information
-            const { data: studentData, error: studentError } = await supabase
+            const { data: existingStudents } = await supabase
               .from('students')
-              .insert([{
-                first_name: payment.student_name.split(' ')[0] || payment.student_name,
-                last_name: payment.student_name.split(' ').slice(1).join(' ') || '',
-                email: '', // Student email should be separate from parent email
-                phone: '', // Student phone should be separate from parent phone
-                grade_level: payment.student_class,
-                parent_id: parentData?.id || null,
-                enrollment_date: payment.payment_date,
-                status: 'active',
-                address: '', // Student address
-                date_of_birth: null, // Will be filled later if needed
-                subjects: [] // Student subjects
-              }])
-              .select()
-              .single();
+              .select('id, first_name, last_name, grade_level')
+              .eq('status', 'active')
+              .ilike('first_name', `%${firstName}%`)
+              .eq('grade_level', payment.student_class);
 
-            if (studentError) {
-              console.error('Error creating student:', studentError);
-              throw studentError;
+            // If we found a matching student, use it
+            if (existingStudents && existingStudents.length > 0) {
+              // Find the best match (exact first name match preferred)
+              const exactMatch = existingStudents.find(s =>
+                s.first_name.toLowerCase() === firstName.toLowerCase()
+              );
+
+              studentId = exactMatch ? exactMatch.id : existingStudents[0].id;
+              console.log('✅ Found existing student:', existingStudents[0].first_name, existingStudents[0].last_name);
+
+              // Update the payment record with the existing student_id
+              await supabase
+                .from('external_fee_payments')
+                .update({ student_id: studentId })
+                .eq('id', paymentId);
+            } else {
+              console.log('No existing student found, creating new one...');
+
+              // First, create or get parent record
+              const { data: parentData, error: parentError } = await supabase
+                .from('parents')
+                .upsert({
+                  first_name: payment.parent_name?.split(' ')[0] || 'Parent',
+                  last_name: payment.parent_name?.split(' ').slice(1).join(' ') || '',
+                  email: payment.parent_email || '',
+                  phone: payment.parent_phone || '',
+                  address: '',
+                  occupation: ''
+                }, {
+                  onConflict: 'email'
+                })
+                .select()
+                .single();
+
+              if (parentError && parentError.code !== '23505') { // Ignore duplicate key error
+                console.error('Error creating parent:', parentError);
+              }
+
+              // Create student record with ONLY student information
+              const { data: studentData, error: studentError } = await supabase
+                .from('students')
+                .insert([{
+                  first_name: firstName || payment.student_name,
+                  last_name: lastName || '',
+                  email: '', // Student email should be separate from parent email
+                  phone: '', // Student phone should be separate from parent phone
+                  grade_level: payment.student_class,
+                  parent_id: parentData?.id || null,
+                  enrollment_date: payment.payment_date,
+                  status: 'active',
+                  address: '', // Student address
+                  date_of_birth: null, // Will be filled later if needed
+                  subjects: [] // Student subjects
+                }])
+                .select()
+                .single();
+
+              if (studentError) {
+                console.error('Error creating student:', studentError);
+                throw studentError;
+              }
+
+              studentId = studentData.id;
+              console.log('✅ Created new student:', studentData.first_name, studentData.last_name);
+
+              // Update the payment record with the new student_id
+              await supabase
+                .from('external_fee_payments')
+                .update({ student_id: studentId })
+                .eq('id', paymentId);
             }
-
-            studentId = studentData.id;
-            console.log('✅ Created new student:', studentData.first_name, studentData.last_name);
-
-            // Update the payment record with the new student_id
-            await supabase
-              .from('external_fee_payments')
-              .update({ student_id: studentId })
-              .eq('id', paymentId);
           }
 
-          // Add to income records
-          await supabase
-            .from('income')
-            .insert([{
-              date: payment.payment_date,
-              type: 'student_fees',
-              sub_type: payment.student_name,
-              amount: payment.payment_amount,
-              payment_mode: payment.payment_method,
-              remarks: `External payment verified - ${payment.course_name || 'Course fee'}`,
-              image_url: payment.payment_proof_url
-            }]);
+          // Find course details for proper fee calculation
+          let courseDetails = null;
+          if (payment.course_name) {
+            const { data: courseData } = await supabase
+              .from('courses')
+              .select('*')
+              .eq('name', payment.course_name)
+              .single();
+            courseDetails = courseData;
+          }
 
-          // Create fee record in the fees table (used by Fee Management)
-          await supabase
+          // Calculate correct total fee amount (use course price, not payment amount)
+          const totalFeeAmount = courseDetails?.price || payment.course_fee || payment.payment_amount;
+
+          // Check if fee record already exists for this student and course
+          const { data: existingFees } = await supabase
             .from('fees')
-            .insert([{
-              student_id: studentId,
-              course_id: null, // Will be linked if course exists
-              amount: payment.payment_amount,
-              due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
-              status: 'paid', // Since payment is verified
-              payment_date: payment.payment_date,
-              payment_method: payment.payment_method,
-              transaction_id: payment.transaction_id || null,
-              notes: `External payment verified - ${payment.course_name || 'Course fee'}`,
-              created_at: new Date().toISOString()
-            }]);
+            .select('*')
+            .eq('student_id', studentId)
+            .eq('course_id', courseDetails?.id);
+
+          // Also check for any existing fees for this student if no course-specific fee found
+          let allStudentFees = [];
+          if (!existingFees || existingFees.length === 0) {
+            const { data: allFees } = await supabase
+              .from('fees')
+              .select('*')
+              .eq('student_id', studentId);
+            allStudentFees = allFees || [];
+          }
+
+          if (existingFees && existingFees.length > 0) {
+            // Update existing fee record - ADD payment to existing paid amount
+            const existingFee = existingFees[0];
+            const newPaidAmount = (existingFee.paid_amount || 0) + payment.payment_amount;
+            const newStatus = newPaidAmount >= existingFee.amount ? 'paid' :
+                             newPaidAmount > 0 ? 'partial' : 'pending';
+
+            await supabase
+              .from('fees')
+              .update({
+                paid_amount: newPaidAmount,
+                status: newStatus,
+                paid_date: newStatus === 'paid' ? payment.payment_date : existingFee.paid_date,
+                payment_date: payment.payment_date,
+                payment_method: payment.payment_method,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', existingFee.id);
+
+            console.log('✅ Updated existing fee record with payment');
+          } else {
+            // Create new fee record with CORRECT total amount and payment amount
+            const newStatus = payment.payment_amount >= totalFeeAmount ? 'paid' :
+                             payment.payment_amount > 0 ? 'partial' : 'pending';
+
+            await supabase
+              .from('fees')
+              .insert([{
+                student_id: studentId,
+                course_id: courseDetails?.id || null,
+                amount: totalFeeAmount, // CORRECT: Use full course fee as total
+                paid_amount: payment.payment_amount, // CORRECT: Payment amount as paid
+                due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                paid_date: newStatus === 'paid' ? payment.payment_date : null,
+                status: newStatus,
+                payment_date: payment.payment_date,
+                payment_method: payment.payment_method,
+                fee_type: 'tuition',
+                description: `External payment verified - ${payment.course_name || 'Course fee'}`,
+                created_at: new Date().toISOString()
+              }]);
+
+            console.log('✅ Created new fee record with correct amounts');
+          }
+
+          // Check if transaction already exists to prevent duplicates
+          const { data: existingTransaction } = await supabase
+            .from('transactions')
+            .select('id')
+            .eq('related_id', studentId)
+            .eq('amount', payment.payment_amount)
+            .eq('date', payment.payment_date)
+            .eq('source', 'external_payment')
+            .single();
+
+          if (!existingTransaction) {
+            // Add to transactions table (for accounts section) with source tracking
+            await supabase
+              .from('transactions')
+              .insert([{
+                type: 'income',
+                date: payment.payment_date,
+                amount: payment.payment_amount,
+                category: 'Student Fees',
+                sub_category: payment.student_name,
+                related_id: studentId,
+                payment_mode: payment.payment_method,
+                description: `External payment verified - ${payment.student_name} - ${payment.course_name || 'Course fee'}`,
+                image_url: payment.payment_proof_url,
+                source: 'external_payment',
+                created_at: new Date().toISOString()
+              }]);
+
+            console.log('✅ Added transaction record for accounts section');
+          } else {
+            console.log('ℹ️ Transaction already exists, skipping duplicate');
+          }
+
+          // Try to add to legacy income table (for backward compatibility) - ignore if table doesn't exist
+          try {
+            await supabase
+              .from('income')
+              .insert([{
+                date: payment.payment_date,
+                type: 'student_fees',
+                sub_type: payment.student_name,
+                amount: payment.payment_amount,
+                payment_mode: payment.payment_method,
+                remarks: `External payment verified - ${payment.course_name || 'Course fee'}`,
+                image_url: payment.payment_proof_url
+              }]);
+            console.log('✅ Added legacy income record');
+          } catch (incomeError) {
+            console.log('ℹ️ Income table not found, skipping legacy record (this is normal)');
+          }
 
           console.log('✅ Created fee record in fees table');
 
@@ -229,7 +358,7 @@ const ExternalFeeManagement: React.FC = () => {
           alert(`Payment rejected successfully!\n\nNote: Failed to automatically generate new payment link. Please create one manually.`);
         }
       } else {
-        alert(`Payment ${newStatus} successfully!`);
+        alert(`Payment ${newStatus} successfully!\n\nThe payment has been processed and will now appear in:\n• Fee Management section\n• Accounts section (Income)\n• Student records\n\nPlease refresh those sections to see the updated data.`);
       }
 
       fetchPayments();

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, Download, Calendar, Upload, X, Eye, Search } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Download, Calendar, Upload, X, Eye, Search, RotateCcw, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface Transaction {
@@ -13,6 +13,7 @@ interface Transaction {
   payment_mode: string;
   description: string;
   image_url?: string;
+  source?: string; // 'manual', 'external_payment', 'fee_management'
   created_at?: string;
 }
 
@@ -158,6 +159,31 @@ const Accounts: React.FC = () => {
     } catch (error) {
       console.error('Error loading transactions:', error);
       setTransactions([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteTransaction = async (transactionId: string) => {
+    if (!confirm('Are you sure you want to delete this transaction? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const { error } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('id', transactionId);
+
+      if (error) throw error;
+
+      // Refresh transactions list
+      await loadTransactions();
+      alert('✅ Transaction deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting transaction:', error);
+      alert('❌ Failed to delete transaction. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -490,6 +516,7 @@ const Accounts: React.FC = () => {
   };
 
   const calculateSummary = () => {
+    // Calculate totals from all transactions (includes all income sources)
     const totalIncome = filteredTransactions
       .filter(t => t.type === 'income')
       .reduce((sum, t) => sum + t.amount, 0);
@@ -498,10 +525,21 @@ const Accounts: React.FC = () => {
       .filter(t => t.type === 'expense')
       .reduce((sum, t) => sum + t.amount, 0);
 
+    // Separate fee-related income from manual income for clarity
+    const feeIncome = filteredTransactions
+      .filter(t => t.type === 'income' && (t.source === 'external_payment' || t.source === 'fee_management'))
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    const manualIncome = filteredTransactions
+      .filter(t => t.type === 'income' && t.source === 'manual')
+      .reduce((sum, t) => sum + t.amount, 0);
+
     return {
       totalIncome,
       totalExpenses,
-      netBalance: totalIncome - totalExpenses
+      netBalance: totalIncome - totalExpenses,
+      feeIncome,
+      manualIncome
     };
   };
 
@@ -544,6 +582,14 @@ const Accounts: React.FC = () => {
           <h1 className="text-3xl font-bold text-secondary-800">Accounts Overview</h1>
           <p className="text-secondary-600 mt-1">Financial overview and transaction management</p>
         </div>
+        <button
+          onClick={loadTransactions}
+          disabled={loading}
+          className="flex items-center space-x-2 bg-secondary-100 hover:bg-secondary-200 text-secondary-700 px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+        >
+          <RotateCcw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          <span>Refresh</span>
+        </button>
       </div>
 
       {/* Quick Navigation to Reports */}
@@ -831,6 +877,13 @@ const Accounts: React.FC = () => {
                             <Eye className="w-4 h-4" />
                           </button>
                         )}
+                        <button
+                          onClick={() => deleteTransaction(transaction.id!)}
+                          className="p-1 text-red-600 hover:text-red-700 transition-colors"
+                          title="Delete transaction"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>

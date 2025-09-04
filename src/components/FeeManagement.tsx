@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DollarSign, CheckCircle, AlertTriangle, Clock, Plus, Search, Filter, Send } from 'lucide-react';
+import { DollarSign, CheckCircle, AlertTriangle, Clock, Plus, Search, Filter, Send, RotateCcw } from 'lucide-react';
 import { EmailService } from '../services/emailService';
 import { supabase } from '../lib/supabase';
 import type { Fee } from '../lib/supabase';
@@ -75,6 +75,8 @@ const FeeManagement: React.FC = () => {
         return;
       }
 
+      console.log('📊 Loaded fee records:', feeRecords?.length || 0);
+
       // Group fees by student and aggregate totals
       const studentFeeMap = new Map();
 
@@ -113,6 +115,19 @@ const FeeManagement: React.FC = () => {
         }
       });
 
+      // Check for course price mismatches and log them
+      studentsData.forEach(student => {
+        const studentFee = studentFeeMap.get(student.id);
+        if (studentFee && studentFee.courses.length > 0) {
+          const expectedTotal = studentFee.courses.reduce((sum, course) => sum + course.price, 0);
+          const actualTotal = studentFee.totalAmount;
+
+          if (Math.abs(expectedTotal - actualTotal) > 0.01) { // Allow for small rounding differences
+            console.warn(`⚠️ Fee mismatch for ${student.first_name} ${student.last_name}: Expected QAR ${expectedTotal}, Actual QAR ${actualTotal}`);
+          }
+        }
+      });
+
       // Calculate remaining amounts and status - show students with fee records OR enrolled courses
       const allFees = Array.from(studentFeeMap.values())
         .filter(studentFee =>
@@ -127,11 +142,50 @@ const FeeManagement: React.FC = () => {
           }
           studentFee.totalRemaining = Math.max(0, studentFee.totalAmount - studentFee.totalPaid);
 
-          // Determine overall status
-          if (studentFee.totalRemaining > 0 && studentFee.totalPaid > 0) {
-            studentFee.status = 'partial';
-          } else if (studentFee.totalRemaining <= 0 && studentFee.totalPaid > 0) {
-            studentFee.status = 'paid';
+          // Calculate monthly fee status
+          const today = new Date();
+          const currentDate = today.getDate();
+          const currentMonth = today.getMonth();
+          const currentYear = today.getFullYear();
+
+          // Find the most recent payment date
+          const lastPaymentDate = studentFee.feeRecords
+            .filter(fee => fee.paid_date)
+            .map(fee => new Date(fee.paid_date))
+            .sort((a, b) => b.getTime() - a.getTime())[0];
+
+          let monthlyStatus = 'pending';
+
+          if (lastPaymentDate) {
+            // Calculate next due date (1 month after last payment)
+            const nextDueDate = new Date(lastPaymentDate);
+            nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+
+            // Calculate warning date (5 days before due date)
+            const warningDate = new Date(nextDueDate);
+            warningDate.setDate(warningDate.getDate() - 5);
+
+            if (today < warningDate) {
+              // Still within the paid month, no pending status
+              monthlyStatus = studentFee.totalRemaining > 0 ? 'partial' : 'paid';
+            } else if (today >= warningDate && today < nextDueDate) {
+              // Within warning period (5 days before due)
+              monthlyStatus = 'warning';
+            } else {
+              // Past due date
+              monthlyStatus = 'overdue';
+            }
+          } else {
+            // No payment made yet
+            monthlyStatus = 'pending';
+          }
+
+          // Determine overall status based on monthly cycle and remaining balance
+          if (studentFee.totalRemaining <= 0 && studentFee.totalPaid > 0) {
+            studentFee.status = monthlyStatus === 'overdue' ? 'overdue' : 'paid';
+          } else if (studentFee.totalPaid > 0) {
+            studentFee.status = monthlyStatus === 'overdue' ? 'overdue' :
+                               monthlyStatus === 'warning' ? 'warning' : 'partial';
           } else {
             studentFee.status = 'pending';
           }
@@ -192,6 +246,8 @@ const FeeManagement: React.FC = () => {
     switch (status) {
       case 'paid': return <CheckCircle className="w-5 h-5 text-success-600" />;
       case 'overdue': return <AlertTriangle className="w-5 h-5 text-danger-600" />;
+      case 'warning': return <AlertTriangle className="w-5 h-5 text-orange-600" />;
+      case 'partial': return <Clock className="w-5 h-5 text-blue-600" />;
       case 'pending': return <Clock className="w-5 h-5 text-warning-600" />;
       default: return <Clock className="w-5 h-5 text-secondary-600" />;
     }
@@ -201,9 +257,43 @@ const FeeManagement: React.FC = () => {
     switch (status) {
       case 'paid': return 'bg-success-100 text-success-800 border-success-200';
       case 'overdue': return 'bg-danger-100 text-danger-800 border-danger-200';
+      case 'warning': return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'partial': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'pending': return 'bg-warning-100 text-warning-800 border-warning-200';
       default: return 'bg-secondary-100 text-secondary-800 border-secondary-200';
     }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'paid': return 'Paid';
+      case 'overdue': return 'Overdue';
+      case 'warning': return 'Due Soon';
+      case 'partial': return 'Partial';
+      case 'pending': return 'Pending';
+      default: return 'Unknown';
+    }
+  };
+
+  const getNextDueDate = (fee: any) => {
+    if (!fee.paid_date) return null;
+
+    const lastPaymentDate = new Date(fee.paid_date);
+    const nextDueDate = new Date(lastPaymentDate);
+    nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+
+    return nextDueDate;
+  };
+
+  const getDaysUntilDue = (fee: any) => {
+    const nextDue = getNextDueDate(fee);
+    if (!nextDue) return null;
+
+    const today = new Date();
+    const diffTime = nextDue.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    return diffDays;
   };
 
   const totalAmount = fees.reduce((sum, fee) => sum + fee.amount, 0);
@@ -352,6 +442,20 @@ const FeeManagement: React.FC = () => {
             created_at: new Date().toISOString()
           }]);
 
+        // Add to transactions table for accounts section
+        await supabase
+          .from('transactions')
+          .insert([{
+            type: 'income',
+            date: new Date().toISOString().split('T')[0],
+            amount: paymentAmount,
+            category: 'Student Fees',
+            payment_mode: 'cash',
+            description: `Fee payment - ${payingFee.student.first_name} ${payingFee.student.last_name} - Multiple Courses`
+          }]);
+
+        console.log('✅ Added payment to transactions table for accounts section');
+
       } else {
         // Handle individual fee record payment (original logic)
         const newPaidAmount = (payingFee.paid_amount || 0) + paymentAmount;
@@ -367,6 +471,23 @@ const FeeManagement: React.FC = () => {
           .eq('id', payingFee.id);
 
         if (error) throw error;
+
+        // Add to transactions table for accounts section with source tracking
+        await supabase
+          .from('transactions')
+          .insert([{
+            type: 'income',
+            date: new Date().toISOString().split('T')[0],
+            amount: paymentAmount,
+            category: 'Student Fees',
+            sub_category: `${payingFee.student.first_name} ${payingFee.student.last_name}`,
+            related_id: payingFee.student_id,
+            payment_mode: 'cash',
+            description: `Fee payment - ${payingFee.student.first_name} ${payingFee.student.last_name} - ${payingFee.description || 'Course fee'}`,
+            source: 'fee_management'
+          }]);
+
+        console.log('✅ Added individual payment to transactions table for accounts section');
       }
 
       setPayingFee(null);
@@ -409,6 +530,14 @@ const FeeManagement: React.FC = () => {
           <p className="text-secondary-600 mt-1">Track and manage student fee payments</p>
         </div>
         <div className="flex space-x-3">
+          <button
+            onClick={loadAllData}
+            disabled={loading}
+            className="flex items-center space-x-2 bg-secondary-100 hover:bg-secondary-200 text-secondary-700 px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+          >
+            <RotateCcw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </button>
           {selectedFees.length > 0 && (
             <button
               onClick={handleBulkReminders}
@@ -499,7 +628,7 @@ const FeeManagement: React.FC = () => {
               Overdue
             </span>
           </div>
-          <h3 className="text-2xl font-bold text-secondary-800">${overdueAmount.toFixed(2)}</h3>
+          <h3 className="text-2xl font-bold text-secondary-800">QAR {overdueAmount.toFixed(2)}</h3>
           <p className="text-danger-600 text-sm font-medium">Overdue Amount</p>
         </div>
 
@@ -636,12 +765,22 @@ const FeeManagement: React.FC = () => {
                       {fee.paid_date && (
                         <div className="text-xs text-success-600">Paid: {new Date(fee.paid_date).toLocaleDateString()}</div>
                       )}
+                      {fee.paid_date && getNextDueDate(fee) && (
+                        <div className="text-xs text-blue-600">
+                          Next Due: {getNextDueDate(fee)?.toLocaleDateString()}
+                          {getDaysUntilDue(fee) !== null && (
+                            <span className={`ml-1 ${getDaysUntilDue(fee)! <= 5 ? 'text-orange-600 font-semibold' : 'text-blue-600'}`}>
+                              ({getDaysUntilDue(fee)! > 0 ? `${getDaysUntilDue(fee)} days left` : 'Due today'})
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-2">
                         {getStatusIcon(fee.status)}
                         <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(fee.status)}`}>
-                          {fee.status?.charAt(0).toUpperCase() + fee.status?.slice(1) || 'Pending'}
+                          {getStatusText(fee.status)}
                         </span>
                       </div>
                     </td>
@@ -650,14 +789,32 @@ const FeeManagement: React.FC = () => {
                         {(fee.remaining_amount || 0) > 0 && (
                           <button
                             onClick={() => openPaymentModal(fee)}
-                            className="flex items-center space-x-1 bg-success-600 hover:bg-success-700 text-white px-3 py-1 rounded text-sm font-medium"
+                            className={`flex items-center space-x-1 px-3 py-1 rounded text-sm font-medium ${
+                              fee.status === 'warning' || fee.status === 'overdue'
+                                ? 'bg-orange-600 hover:bg-orange-700 text-white'
+                                : 'bg-success-600 hover:bg-success-700 text-white'
+                            }`}
                           >
                             <DollarSign className="w-4 h-4" />
-                            <span>Pay Fees</span>
+                            <span>
+                              {fee.status === 'overdue' ? 'Pay Overdue' :
+                               fee.status === 'warning' ? 'Pay Due Soon' :
+                               'Pay Fees'}
+                            </span>
                           </button>
                         )}
-                        {(fee.remaining_amount || 0) === 0 && (
-                          <span className="text-success-600 text-sm font-medium">✓ Fully Paid</span>
+                        {(fee.remaining_amount || 0) === 0 && fee.status === 'paid' && (
+                          <div className="flex flex-col">
+                            <span className="text-success-600 text-sm font-medium">✓ Fully Paid</span>
+                            {getNextDueDate(fee) && getDaysUntilDue(fee) !== null && getDaysUntilDue(fee)! <= 30 && (
+                              <span className="text-xs text-blue-600">
+                                Next payment in {getDaysUntilDue(fee)} days
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {(fee.remaining_amount || 0) === 0 && fee.status === 'overdue' && (
+                          <span className="text-orange-600 text-sm font-medium">⚠️ Next Payment Due</span>
                         )}
                       </div>
                     </td>

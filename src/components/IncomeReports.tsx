@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { TrendingUp, Download, Calendar, Filter, DollarSign, Plus, Upload, X, Eye, Search } from 'lucide-react';
+import { TrendingUp, Download, Calendar, Filter, DollarSign, Plus, Upload, X, Eye, Search, Settings } from 'lucide-react';
+import ManageIncomeTypesModal from './modals/ManageIncomeTypesModal';
 import { supabase } from '../lib/supabase';
 
 interface Transaction {
@@ -13,6 +14,7 @@ interface Transaction {
   payment_mode: string;
   description: string;
   image_url?: string;
+  source?: string; // 'manual', 'external_payment', 'fee_management'
   created_at?: string;
 }
 
@@ -61,10 +63,15 @@ const IncomeReports: React.FC = () => {
   const [subSearch, setSubSearch] = useState('');
   const [showSubDropdown, setShowSubDropdown] = useState(false);
 
+  // Income types management
+  const [incomeTypes, setIncomeTypes] = useState<any[]>([]);
+  const [showManageTypesModal, setShowManageTypesModal] = useState(false);
+
   useEffect(() => {
     loadIncomeTransactions();
     loadStudents();
     loadCourses();
+    loadIncomeTypes();
   }, [dateRange]);
 
   const loadIncomeTransactions = async () => {
@@ -117,6 +124,43 @@ const IncomeReports: React.FC = () => {
       setCourses(data || []);
     } catch (error) {
       console.error('Error loading courses:', error);
+    }
+  };
+
+  // Load income types from database
+  const loadIncomeTypes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('income_types')
+        .select('*')
+        .eq('is_active', true)
+        .order('is_default', { ascending: false })
+        .order('name');
+
+      if (error) {
+        console.error('Error loading income types:', error);
+        // Fallback to hardcoded types if database table doesn't exist
+        setIncomeTypes([
+          { name: 'Student Fees', hasSubCategory: true },
+          { name: 'Course Sales', hasSubCategory: true },
+          { name: 'Consulting', hasSubCategory: false },
+          { name: 'Grants', hasSubCategory: false },
+          { name: 'Donations', hasSubCategory: false },
+          { name: 'Investment Returns', hasSubCategory: false },
+          { name: 'Other Income', hasSubCategory: false }
+        ]);
+        return;
+      }
+
+      // Convert database format to component format
+      const formattedTypes = (data || []).map(type => ({
+        name: type.name,
+        hasSubCategory: type.name === 'Student Fees' || type.name === 'Course Sales'
+      }));
+
+      setIncomeTypes(formattedTypes);
+    } catch (error) {
+      console.error('Error loading income types:', error);
     }
   };
 
@@ -221,17 +265,7 @@ const IncomeReports: React.FC = () => {
     e.preventDefault();
 
     // Validate sub-category selection for categories that require it
-    const incomeCategories = [
-      { value: 'Student Fees', hasSubCategory: true },
-      { value: 'Course Sales', hasSubCategory: true },
-      { value: 'Consulting', hasSubCategory: false },
-      { value: 'Grants', hasSubCategory: false },
-      { value: 'Donations', hasSubCategory: false },
-      { value: 'Investment Returns', hasSubCategory: false },
-      { value: 'Other Income', hasSubCategory: false }
-    ];
-
-    const selectedCategory = incomeCategories.find(cat => cat.value === formData.category);
+    const selectedCategory = incomeTypes.find(cat => cat.name === formData.category);
 
     if (selectedCategory?.hasSubCategory && !formData.sub_category) {
       alert(`Please select a ${formData.category === 'Student Fees' ? 'student' : 'course'}`);
@@ -246,12 +280,13 @@ const IncomeReports: React.FC = () => {
         imageUrl = await handleImageUpload(imageFile);
       }
 
-      // Insert transaction
+      // Insert transaction with source tracking
       const { error } = await supabase
         .from('transactions')
         .insert([{
           ...formData,
-          image_url: imageUrl
+          image_url: imageUrl,
+          source: 'manual' // Mark as manual entry
         }]);
 
       if (error) {
@@ -440,10 +475,7 @@ const IncomeReports: React.FC = () => {
 
   const totalIncome = transactions.reduce((sum, t) => sum + t.amount, 0);
 
-  const incomeCategories = [
-    'Student Fees', 'Course Sales', 'Consulting', 'Grants', 
-    'Donations', 'Investment Returns', 'Other Income'
-  ];
+  const incomeCategoryNames = incomeTypes.map(type => type.name);
 
   return (
     <div className="space-y-6 pt-6">
@@ -528,7 +560,7 @@ const IncomeReports: React.FC = () => {
         </div>
         <div className="p-6">
           <div className="space-y-4">
-            {incomeCategories.map(category => {
+            {incomeCategoryNames.map(category => {
               const categoryTransactions = transactions.filter(t => t.category === category);
               const categoryTotal = categoryTransactions.reduce((sum, t) => sum + t.amount, 0);
               
@@ -667,9 +699,19 @@ const IncomeReports: React.FC = () => {
 
               {/* Category */}
               <div>
-                <label className="block text-sm font-medium text-secondary-700 mb-2">
-                  Income Type *
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-secondary-700">
+                    Income Type *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowManageTypesModal(true)}
+                    className="flex items-center space-x-1 text-xs text-primary-600 hover:text-primary-700 transition-colors"
+                  >
+                    <Settings className="w-3 h-3" />
+                    <span>Manage Types</span>
+                  </button>
+                </div>
                 <select
                   value={formData.category}
                   onChange={(e) => handleCategoryChange(e.target.value)}
@@ -677,13 +719,9 @@ const IncomeReports: React.FC = () => {
                   required
                 >
                   <option value="">Select Category</option>
-                  <option value="Student Fees">Student Fees</option>
-                  <option value="Course Sales">Course Sales</option>
-                  <option value="Consulting">Consulting</option>
-                  <option value="Grants">Grants</option>
-                  <option value="Donations">Donations</option>
-                  <option value="Investment Returns">Investment Returns</option>
-                  <option value="Other Income">Other Income</option>
+                  {incomeTypes.map(type => (
+                    <option key={type.name} value={type.name}>{type.name}</option>
+                  ))}
                 </select>
               </div>
 
@@ -892,6 +930,13 @@ const IncomeReports: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Manage Income Types Modal */}
+      <ManageIncomeTypesModal
+        isOpen={showManageTypesModal}
+        onClose={() => setShowManageTypesModal(false)}
+        onUpdate={loadIncomeTypes}
+      />
     </div>
   );
 };

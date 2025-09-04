@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { TrendingDown, Download, Calendar, Filter, DollarSign, Plus, Upload, X, Eye, Search } from 'lucide-react';
+import { TrendingDown, Download, Calendar, Filter, DollarSign, Plus, Upload, X, Eye, Search, Settings } from 'lucide-react';
+import ManageExpenseTypesModal from './modals/ManageExpenseTypesModal';
 import { supabase } from '../lib/supabase';
 
 interface Transaction {
@@ -13,6 +14,7 @@ interface Transaction {
   payment_mode: string;
   description: string;
   image_url?: string;
+  source?: string; // 'manual', 'external_payment', 'fee_management'
   created_at?: string;
 }
 
@@ -55,9 +57,14 @@ const ExpenseReports: React.FC = () => {
   const [subSearch, setSubSearch] = useState('');
   const [showSubDropdown, setShowSubDropdown] = useState(false);
 
+  // Expense types management
+  const [expenseTypes, setExpenseTypes] = useState<any[]>([]);
+  const [showManageTypesModal, setShowManageTypesModal] = useState(false);
+
   useEffect(() => {
     loadExpenseTransactions();
     loadStaff();
+    loadExpenseTypes();
   }, [dateRange]);
 
   const loadExpenseTransactions = async () => {
@@ -94,6 +101,46 @@ const ExpenseReports: React.FC = () => {
       setStaff(data || []);
     } catch (error) {
       console.error('Error loading staff:', error);
+    }
+  };
+
+  // Load expense types from database
+  const loadExpenseTypes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('expense_types')
+        .select('*')
+        .eq('is_active', true)
+        .order('is_default', { ascending: false })
+        .order('name');
+
+      if (error) {
+        console.error('Error loading expense types:', error);
+        // Fallback to hardcoded types if database table doesn't exist
+        setExpenseTypes([
+          { name: 'Rent', hasSubCategory: false },
+          { name: 'Utilities', hasSubCategory: false },
+          { name: 'Salaries', hasSubCategory: true },
+          { name: 'Office Supplies', hasSubCategory: false },
+          { name: 'Marketing', hasSubCategory: false },
+          { name: 'Maintenance', hasSubCategory: false },
+          { name: 'Travel', hasSubCategory: false },
+          { name: 'Food & Beverages', hasSubCategory: false },
+          { name: 'Equipment', hasSubCategory: false },
+          { name: 'Other', hasSubCategory: false }
+        ]);
+        return;
+      }
+
+      // Convert database format to component format
+      const formattedTypes = (data || []).map(type => ({
+        name: type.name,
+        hasSubCategory: type.name === 'Salaries'
+      }));
+
+      setExpenseTypes(formattedTypes);
+    } catch (error) {
+      console.error('Error loading expense types:', error);
     }
   };
 
@@ -193,20 +240,7 @@ const ExpenseReports: React.FC = () => {
     e.preventDefault();
 
     // Validate sub-category selection for categories that require it
-    const expenseCategories = [
-      { value: 'Rent', hasSubCategory: false },
-      { value: 'Utilities', hasSubCategory: false },
-      { value: 'Salaries', hasSubCategory: true },
-      { value: 'Office Supplies', hasSubCategory: false },
-      { value: 'Marketing', hasSubCategory: false },
-      { value: 'Maintenance', hasSubCategory: false },
-      { value: 'Travel', hasSubCategory: false },
-      { value: 'Food & Beverages', hasSubCategory: false },
-      { value: 'Equipment', hasSubCategory: false },
-      { value: 'Other', hasSubCategory: false }
-    ];
-
-    const selectedCategory = expenseCategories.find(cat => cat.value === formData.category);
+    const selectedCategory = expenseTypes.find(cat => cat.name === formData.category);
 
     if (selectedCategory?.hasSubCategory && !formData.sub_category) {
       alert('Please select a staff member');
@@ -285,10 +319,7 @@ const ExpenseReports: React.FC = () => {
 
   const totalExpenses = transactions.reduce((sum, t) => sum + t.amount, 0);
 
-  const expenseCategories = [
-    'Rent', 'Utilities', 'Salaries', 'Office Supplies', 'Marketing', 
-    'Maintenance', 'Travel', 'Food & Beverages', 'Equipment', 'Other'
-  ];
+  const expenseCategoryNames = expenseTypes.map(type => type.name);
 
   return (
     <div className="space-y-6 pt-6">
@@ -373,7 +404,7 @@ const ExpenseReports: React.FC = () => {
         </div>
         <div className="p-6">
           <div className="space-y-4">
-            {expenseCategories.map(category => {
+            {expenseCategoryNames.map(category => {
               const categoryTransactions = transactions.filter(t => t.category === category);
               const categoryTotal = categoryTransactions.reduce((sum, t) => sum + t.amount, 0);
               
@@ -511,9 +542,19 @@ const ExpenseReports: React.FC = () => {
 
               {/* Category */}
               <div>
-                <label className="block text-sm font-medium text-secondary-700 mb-2">
-                  Expense Type *
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-secondary-700">
+                    Expense Type *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowManageTypesModal(true)}
+                    className="flex items-center space-x-1 text-xs text-danger-600 hover:text-danger-700 transition-colors"
+                  >
+                    <Settings className="w-3 h-3" />
+                    <span>Manage Types</span>
+                  </button>
+                </div>
                 <select
                   value={formData.category}
                   onChange={(e) => handleCategoryChange(e.target.value)}
@@ -521,16 +562,9 @@ const ExpenseReports: React.FC = () => {
                   required
                 >
                   <option value="">Select Category</option>
-                  <option value="Rent">Rent</option>
-                  <option value="Utilities">Utilities</option>
-                  <option value="Salaries">Salaries</option>
-                  <option value="Office Supplies">Office Supplies</option>
-                  <option value="Marketing">Marketing</option>
-                  <option value="Maintenance">Maintenance</option>
-                  <option value="Travel">Travel</option>
-                  <option value="Food & Beverages">Food & Beverages</option>
-                  <option value="Equipment">Equipment</option>
-                  <option value="Other">Other</option>
+                  {expenseTypes.map(type => (
+                    <option key={type.name} value={type.name}>{type.name}</option>
+                  ))}
                 </select>
               </div>
 
@@ -740,6 +774,13 @@ const ExpenseReports: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Manage Expense Types Modal */}
+      <ManageExpenseTypesModal
+        isOpen={showManageTypesModal}
+        onClose={() => setShowManageTypesModal(false)}
+        onUpdate={loadExpenseTypes}
+      />
     </div>
   );
 };

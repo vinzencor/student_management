@@ -26,13 +26,125 @@ const CourseManagement: React.FC = () => {
         .from('courses')
         .select('*')
         .order('created_at', { ascending: false });
-      
+
       if (error) throw error;
       setCourses(data || []);
     } catch (error) {
       console.error('Error loading courses:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const updateStudentFeesForCourse = async (courseId: string, newPrice: number) => {
+    try {
+      console.log(`🔄 Updating fees for course ${courseId} to QAR ${newPrice}`);
+
+      // Get all students enrolled in this course
+      const { data: enrolledStudents, error: studentsError } = await supabase
+        .from('students')
+        .select(`
+          id, first_name, last_name,
+          student_courses!inner(course_id)
+        `)
+        .eq('student_courses.course_id', courseId)
+        .eq('status', 'active');
+
+      if (studentsError) throw studentsError;
+
+      // Also get students who have this as their primary course
+      const { data: primaryCourseStudents, error: primaryError } = await supabase
+        .from('students')
+        .select('id, first_name, last_name')
+        .eq('course_id', courseId)
+        .eq('status', 'active');
+
+      if (primaryError) throw primaryError;
+
+      // Combine both lists and remove duplicates
+      const allStudents = [...(enrolledStudents || []), ...(primaryCourseStudents || [])]
+        .filter((student, index, self) =>
+          index === self.findIndex(s => s.id === student.id)
+        );
+
+      console.log(`📊 Found ${allStudents.length} students enrolled in this course`);
+
+      if (allStudents.length === 0) {
+        console.log('ℹ️ No students found for this course');
+        return;
+      }
+
+      // Update fee records for each student
+      let updatedCount = 0;
+      for (const student of allStudents) {
+        // Get existing fee records for this student and course
+        const { data: existingFees, error: feesError } = await supabase
+          .from('fees')
+          .select('*')
+          .eq('student_id', student.id)
+          .eq('course_id', courseId);
+
+        if (feesError) {
+          console.error(`Error fetching fees for student ${student.id}:`, feesError);
+          continue;
+        }
+
+        if (existingFees && existingFees.length > 0) {
+          // Update existing fee records
+          for (const fee of existingFees) {
+            const paidAmount = fee.paid_amount || 0;
+            const newRemainingAmount = Math.max(0, newPrice - paidAmount);
+            const newStatus = paidAmount >= newPrice ? 'paid' :
+                             paidAmount > 0 ? 'partial' : 'pending';
+
+            const { error: updateError } = await supabase
+              .from('fees')
+              .update({
+                amount: newPrice,
+                status: newStatus,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', fee.id);
+
+            if (updateError) {
+              console.error(`Error updating fee for student ${student.id}:`, updateError);
+            } else {
+              updatedCount++;
+              console.log(`✅ Updated fee for ${student.first_name} ${student.last_name}: QAR ${newPrice} (paid: QAR ${paidAmount}, remaining: QAR ${newRemainingAmount})`);
+            }
+          }
+        } else {
+          // Create new fee record if none exists
+          const { error: insertError } = await supabase
+            .from('fees')
+            .insert([{
+              student_id: student.id,
+              course_id: courseId,
+              amount: newPrice,
+              paid_amount: 0,
+              status: 'pending',
+              due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
+              fee_type: 'tuition',
+              description: `Course fee updated to QAR ${newPrice}`,
+              created_at: new Date().toISOString()
+            }]);
+
+          if (insertError) {
+            console.error(`Error creating fee for student ${student.id}:`, insertError);
+          } else {
+            updatedCount++;
+            console.log(`✅ Created new fee record for ${student.first_name} ${student.last_name}: QAR ${newPrice}`);
+          }
+        }
+      }
+
+      if (updatedCount > 0) {
+        alert(`✅ Course fee updated successfully!\n\n${updatedCount} student fee records have been updated to reflect the new price of QAR ${newPrice.toLocaleString()}.\n\nPlease refresh the Fee Management section to see the changes.`);
+      }
+
+    } catch (error) {
+      console.error('Error updating student fees for course:', error);
+      alert('⚠️ Course price updated, but there was an error updating student fee records. Please check the Fee Management section and update manually if needed.');
     }
   };
 
@@ -66,7 +178,12 @@ const CourseManagement: React.FC = () => {
       }
 
       if (result.error) throw result.error;
-      
+
+      // If this was an update and the price changed, update related fee records
+      if (editing.id && payload.price !== undefined) {
+        await updateStudentFeesForCourse(editing.id, payload.price);
+      }
+
       setEditing(null);
       await loadCourses();
     } catch (error) {

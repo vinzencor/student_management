@@ -150,7 +150,7 @@ export interface Fee {
   remaining_amount?: number
   due_date: string
   paid_date?: string
-  status: 'pending' | 'paid' | 'overdue' | 'partial'
+  status: 'pending' | 'paid' | 'overdue' | 'partial' | 'warning'
   payment_method?: 'cash' | 'card' | 'bank_transfer' | 'upi'
   receipt_number?: string
   fee_type: 'tuition' | 'registration' | 'exam' | 'library' | 'lab' | 'transport' | 'other'

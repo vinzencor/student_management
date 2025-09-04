@@ -1,4 +1,5 @@
 import React from 'react';
+import { MessageCircle } from 'lucide-react';
 
 interface PrintableReceiptProps {
   receipt: any;
@@ -19,6 +20,50 @@ const PrintableReceipt: React.FC<PrintableReceiptProps> = ({
     window.print();
   };
 
+  const handleWhatsAppSend = () => {
+    if (!parent?.phone) {
+      alert('Parent phone number not available');
+      return;
+    }
+
+    const courseFee = course?.price || 0;
+    const amountPaying = receipt.amount || 0;
+    const remaining = Math.max(0, courseFee - amountPaying);
+    const totalAmount = receipt.total_amount || 0;
+
+    const message = `🎓 *STUDENT MANAGEMENT SYSTEM*
+📧 *Fee Payment Receipt*
+
+👨‍🎓 *Student Details:*
+• Name: ${student?.first_name} ${student?.last_name}
+• Grade: ${student?.grade_level}
+• Phone: ${student?.phone || 'N/A'}
+
+👨‍👩‍👧‍👦 *Parent Details:*
+• Name: ${parent?.first_name} ${parent?.last_name}
+• Phone: ${parent?.phone}
+• Email: ${parent?.email}
+
+📚 *Course & Fee Details:*
+• Course: ${course?.name}
+• Total Fee: QAR ${courseFee.toLocaleString()}
+• Amount Paid: QAR ${amountPaying.toLocaleString()}
+• Tax: QAR ${(receipt.tax_amount || 0).toLocaleString()}
+• *Total Amount: QAR ${totalAmount.toLocaleString()}*
+${remaining > 0 ? `• ⚠️ *Remaining Balance: QAR ${remaining.toLocaleString()}*` : '• ✅ *Fully Paid*'}
+
+📅 Receipt Date: ${formatDate(receipt.created_at)}
+🧾 Receipt No: ${receipt.id?.slice(-8).toUpperCase()}
+
+Thank you for your payment! 🙏
+For any queries, please contact the administration office.`;
+
+    // Clean phone number and send WhatsApp message
+    const cleanPhone = parent.phone.replace(/\D/g, '');
+    const encodedMessage = encodeURIComponent(message);
+    window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, '_blank');
+  };
+
   const formatDate = (date: string) => {
     return new Date(date).toLocaleDateString('en-IN');
   };
@@ -37,6 +82,13 @@ const PrintableReceipt: React.FC<PrintableReceiptProps> = ({
           <div className="flex justify-between items-center mb-6 print:hidden">
             <h2 className="text-xl font-bold">Receipt Preview</h2>
             <div className="space-x-2">
+              <button
+                onClick={handleWhatsAppSend}
+                className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span>Send to WhatsApp</span>
+              </button>
               <button
                 onClick={handlePrint}
                 className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
