@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Printer, Download, Search, Calendar, Filter, Receipt, Eye, Plus } from 'lucide-react';
+import { Printer, Download, Search, Calendar, Filter, Receipt, Eye, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import AddFeePaymentModal from './modals/AddFeePaymentModal';
 
@@ -28,6 +28,11 @@ const FeeReceipts: React.FC = () => {
   const [showAddFeeModal, setShowAddFeeModal] = useState(false);
   const [students, setStudents] = useState<any[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
+  const [deleteConfirm, setDeleteConfirm] = useState<{show: boolean, receiptId: string, receiptNumber: string}>({
+    show: false,
+    receiptId: '',
+    receiptNumber: ''
+  });
 
   useEffect(() => {
     loadReceipts();
@@ -249,6 +254,45 @@ const FeeReceipts: React.FC = () => {
     printReceipt(receipt);
   };
 
+  const handleDeleteReceipt = (receiptId: string, receiptNumber: string) => {
+    setDeleteConfirm({
+      show: true,
+      receiptId,
+      receiptNumber
+    });
+  };
+
+  const confirmDeleteReceipt = async () => {
+    try {
+      setLoading(true);
+
+      // Delete the fee receipt from the database
+      const { error } = await supabase
+        .from('fee_receipts')
+        .delete()
+        .eq('id', deleteConfirm.receiptId);
+
+      if (error) throw error;
+
+      // Reload receipts to reflect the deletion
+      await loadReceipts();
+
+      // Close confirmation dialog
+      setDeleteConfirm({ show: false, receiptId: '', receiptNumber: '' });
+
+      console.log('Receipt deleted successfully');
+    } catch (error) {
+      console.error('Error deleting receipt:', error);
+      alert('Failed to delete receipt. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cancelDeleteReceipt = () => {
+    setDeleteConfirm({ show: false, receiptId: '', receiptNumber: '' });
+  };
+
   return (
     <div className="space-y-6 pt-6">
       {/* Header */}
@@ -399,6 +443,14 @@ const FeeReceipts: React.FC = () => {
                           <Download className="w-4 h-4" />
                           <span>PDF</span>
                         </button>
+                        <button
+                          onClick={() => handleDeleteReceipt(receipt.id, receipt.receipt_number)}
+                          className="flex items-center space-x-1 bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg transition-colors text-sm"
+                          title="Delete Receipt"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          <span>Delete</span>
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -419,6 +471,59 @@ const FeeReceipts: React.FC = () => {
             setShowAddFeeModal(false);
           }}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-xl">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-secondary-800">Delete Receipt</h3>
+                <p className="text-sm text-secondary-600">This action cannot be undone</p>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-secondary-700">
+                Are you sure you want to delete receipt <strong>{deleteConfirm.receiptNumber}</strong>?
+              </p>
+              <p className="text-sm text-red-600 mt-2">
+                ⚠️ This will permanently remove the receipt from the system.
+              </p>
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={cancelDeleteReceipt}
+                className="px-4 py-2 text-secondary-600 hover:text-secondary-800 font-medium transition-colors"
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteReceipt}
+                disabled={loading}
+                className="flex items-center space-x-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+              >
+                {loading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Delete Receipt</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
