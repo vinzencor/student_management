@@ -356,7 +356,7 @@ const StudentAdmissionModal: React.FC<StudentAdmissionModalProps> = ({
                     <p className="text-sm text-red-600 mt-2">Please select at least one course</p>
                   )}
                 </div>
-                <div>
+                {/* <div>
                   <label className="block text-sm font-medium text-secondary-700 mb-1">Religion</label>
                   <input
                     type="text"
@@ -364,7 +364,7 @@ const StudentAdmissionModal: React.FC<StudentAdmissionModalProps> = ({
                     value={studentForm.religion}
                     onChange={(e) => setStudentForm({...studentForm, religion: e.target.value})}
                   />
-                </div>
+                </div> */}
                 <div>
                   <label className="block text-sm font-medium text-secondary-700 mb-1">Batch Duration *</label>
                   <select
@@ -391,7 +391,7 @@ const StudentAdmissionModal: React.FC<StudentAdmissionModalProps> = ({
                     onChange={(e) => setStudentForm({...studentForm, batch_start_date: e.target.value})}
                   />
                 </div>
-                <div>
+                {/* <div>
                   <label className="block text-sm font-medium text-secondary-700 mb-1">Blood Group</label>
                   <select
                     className="w-full border border-secondary-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
@@ -408,7 +408,7 @@ const StudentAdmissionModal: React.FC<StudentAdmissionModalProps> = ({
                     <option value="O+">O+</option>
                     <option value="O-">O-</option>
                   </select>
-                </div>
+                </div> */}
                 <div>
                   <label className="block text-sm font-medium text-secondary-700 mb-1">Nationality</label>
                   <input

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle, DollarSign, User, Clock, Mail, Send, Eye, RefreshCw } from 'lucide-react';
+import { AlertTriangle, DollarSign, User, Clock, Mail, Send, Eye, RefreshCw, MessageCircle, Phone } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { EmailNotificationService } from '../../services/emailNotificationService';
 
@@ -35,6 +35,8 @@ const FeeManagementAlert: React.FC<FeeManagementAlertProps> = ({ setActiveView }
   const [showAll, setShowAll] = useState(false);
   const [sendingReminders, setSendingReminders] = useState<Set<string>>(new Set());
   const [sendingBulkReminders, setSendingBulkReminders] = useState(false);
+  const [sendingWhatsApp, setSendingWhatsApp] = useState<Set<string>>(new Set());
+  const [sendingBulkWhatsApp, setSendingBulkWhatsApp] = useState(false);
 
   useEffect(() => {
     loadStudentsWithUnpaidFees();
@@ -287,10 +289,152 @@ const FeeManagementAlert: React.FC<FeeManagementAlertProps> = ({ setActiveView }
     }
   };
 
+  const formatPhoneForWhatsApp = (phone: string): string => {
+    // Remove all non-digit characters
+    const cleanPhone = phone.replace(/\D/g, '');
+
+    // If phone starts with +974 or 974, use as is
+    if (cleanPhone.startsWith('974')) {
+      return cleanPhone;
+    }
+
+    // If phone doesn't start with country code, add Qatar country code
+    if (cleanPhone.length === 8) {
+      return `974${cleanPhone}`;
+    }
+
+    return cleanPhone;
+  };
+
+  const sendWhatsAppReminder = async (student: StudentWithFees) => {
+    try {
+      setSendingWhatsApp(prev => new Set(prev).add(student.id));
+
+      // Get phone number (prefer parent phone, fallback to student phone)
+      const phoneNumber = student.parent?.phone || student.phone;
+
+      if (!phoneNumber) {
+        alert(`❌ No phone number found for ${student.first_name} ${student.last_name}`);
+        return;
+      }
+
+      const formattedPhone = formatPhoneForWhatsApp(phoneNumber);
+
+      // Create WhatsApp message
+      const message = `🎓 *Fee Reminder - Student Management System*
+
+Dear Parent/Guardian,
+
+This is a friendly reminder regarding the pending fee payment for:
+
+👤 *Student:* ${student.first_name} ${student.last_name}
+📚 *Grade:* ${student.grade_level}
+💰 *Outstanding Amount:* QAR ${student.remainingAmount.toLocaleString()}
+📅 *Status:* ${student.status === 'overdue' ? '⚠️ Overdue' : '⏰ Pending'}
+
+${student.lastPaymentDate
+  ? `Last Payment: ${student.daysSinceLastPayment} days ago`
+  : 'No previous payments recorded'
+}
+
+Please make the payment at your earliest convenience. For any queries, please contact our office.
+
+Thank you for your cooperation.
+
+*Best regards,*
+*Student Management Team*`;
+
+      // Create WhatsApp URL
+      const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
+
+      // Open WhatsApp in new tab
+      window.open(whatsappUrl, '_blank');
+
+      alert(`✅ WhatsApp opened for ${student.first_name} ${student.last_name} (${phoneNumber})`);
+
+    } catch (error: any) {
+      console.error('Error opening WhatsApp:', error);
+      alert(`❌ Failed to open WhatsApp: ${error.message || 'Unknown error'}`);
+    } finally {
+      setSendingWhatsApp(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(student.id);
+        return newSet;
+      });
+    }
+  };
+
+  const sendBulkWhatsAppReminders = async () => {
+    try {
+      setSendingBulkWhatsApp(true);
+
+      const studentsWithPhones = students.filter(s => s.phone || s.parent?.phone);
+
+      if (studentsWithPhones.length === 0) {
+        alert('❌ No students found with phone numbers');
+        return;
+      }
+
+      let openedCount = 0;
+
+      // Open WhatsApp for each student with phone
+      for (const student of studentsWithPhones) {
+        try {
+          const phoneNumber = student.parent?.phone || student.phone;
+          const formattedPhone = formatPhoneForWhatsApp(phoneNumber);
+
+          const message = `🎓 *Fee Reminder - Student Management System*
+
+Dear Parent/Guardian,
+
+This is a friendly reminder regarding the pending fee payment for:
+
+👤 *Student:* ${student.first_name} ${student.last_name}
+📚 *Grade:* ${student.grade_level}
+💰 *Outstanding Amount:* QAR ${student.remainingAmount.toLocaleString()}
+📅 *Status:* ${student.status === 'overdue' ? '⚠️ Overdue' : '⏰ Pending'}
+
+${student.lastPaymentDate
+  ? `Last Payment: ${student.daysSinceLastPayment} days ago`
+  : 'No previous payments recorded'
+}
+
+Please make the payment at your earliest convenience. For any queries, please contact our office.
+
+Thank you for your cooperation.
+
+*Best regards,*
+*Student Management Team*`;
+
+          const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
+
+          // Open WhatsApp in new tab with delay
+          setTimeout(() => {
+            window.open(whatsappUrl, '_blank');
+          }, openedCount * 1000); // 1 second delay between each
+
+          openedCount++;
+        } catch (error) {
+          console.error(`Failed to open WhatsApp for ${student.first_name} ${student.last_name}:`, error);
+        }
+      }
+
+      alert(`✅ Opening WhatsApp for ${openedCount} students with phone numbers.\nEach will open with 1 second delay.`);
+
+    } catch (error: any) {
+      console.error('Error sending bulk WhatsApp reminders:', error);
+      alert(`❌ Failed to send bulk WhatsApp reminders: ${error.message || 'Unknown error'}`);
+    } finally {
+      setSendingBulkWhatsApp(false);
+    }
+  };
+
   const overdueStudents = students.filter(s => s.status === 'overdue');
   const pendingStudents = students.filter(s => s.status === 'pending');
   const studentsWithEmails = students.filter(s => s.email || s.parent?.email);
+  const studentsWithPhones = students.filter(s => s.phone || s.parent?.phone);
   const studentsWithoutEmails = students.filter(s => !s.email && !s.parent?.email);
+  const studentsWithoutPhones = students.filter(s => !s.phone && !s.parent?.phone);
   const displayStudents = showAll ? students : students.slice(0, 5);
 
   if (loading) {
@@ -413,26 +557,49 @@ const FeeManagementAlert: React.FC<FeeManagementAlertProps> = ({ setActiveView }
               </div>
 
               <div className="flex items-center space-x-2 ml-4">
-                {(!student.email && !student.parent?.email) ? (
-                  <div className="text-xs text-secondary-500 px-3 py-2">
-                    No Email
-                  </div>
-                ) : (
+                {/* Email Button */}
+                {(student.email || student.parent?.email) && (
                   <button
                     onClick={() => sendQuickReminder(student)}
                     disabled={sendingReminders.has(student.id) || sendingBulkReminders}
                     className="flex items-center space-x-1 bg-primary-600 hover:bg-primary-700 text-white px-3 py-2 rounded-lg transition-colors text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={`Send reminder to ${student.parent?.email || student.email}`}
+                    title={`Send email reminder to ${student.parent?.email || student.email}`}
                   >
                     {sendingReminders.has(student.id) ? (
                       <RefreshCw className="w-3 h-3 animate-spin" />
                     ) : (
-                      <Send className="w-3 h-3" />
+                      <Mail className="w-3 h-3" />
                     )}
                     <span className="hidden sm:inline">
-                      {sendingReminders.has(student.id) ? 'Sending...' : 'Remind'}
+                      {sendingReminders.has(student.id) ? 'Sending...' : 'Email'}
                     </span>
                   </button>
+                )}
+
+                {/* WhatsApp Button */}
+                {(student.phone || student.parent?.phone) && (
+                  <button
+                    onClick={() => sendWhatsAppReminder(student)}
+                    disabled={sendingWhatsApp.has(student.id) || sendingBulkWhatsApp}
+                    className="flex items-center space-x-1 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg transition-colors text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={`Send WhatsApp reminder to ${student.parent?.phone || student.phone}`}
+                  >
+                    {sendingWhatsApp.has(student.id) ? (
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <MessageCircle className="w-3 h-3" />
+                    )}
+                    <span className="hidden sm:inline">
+                      {sendingWhatsApp.has(student.id) ? 'Opening...' : 'WhatsApp'}
+                    </span>
+                  </button>
+                )}
+
+                {/* No Contact Info */}
+                {(!student.email && !student.parent?.email && !student.phone && !student.parent?.phone) && (
+                  <div className="text-xs text-secondary-500 px-3 py-2">
+                    No Contact Info
+                  </div>
                 )}
               </div>
             </div>
@@ -467,7 +634,7 @@ const FeeManagementAlert: React.FC<FeeManagementAlertProps> = ({ setActiveView }
             onClick={sendBulkReminders}
             disabled={sendingBulkReminders || studentsWithEmails.length === 0}
             className="flex items-center space-x-2 bg-primary-600 hover:bg-primary-700 text-white px-3 py-2 rounded-lg transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-            title={`Send reminders to ${studentsWithEmails.length} students with email addresses`}
+            title={`Send email reminders to ${studentsWithEmails.length} students with email addresses`}
           >
             {sendingBulkReminders ? (
               <RefreshCw className="w-4 h-4 animate-spin" />
@@ -476,8 +643,27 @@ const FeeManagementAlert: React.FC<FeeManagementAlertProps> = ({ setActiveView }
             )}
             <span>
               {sendingBulkReminders
-                ? 'Sending...'
-                : `Send Bulk Reminders (${studentsWithEmails.length})`
+                ? 'Sending Emails...'
+                : `Bulk Email (${studentsWithEmails.length})`
+              }
+            </span>
+          </button>
+
+          <button
+            onClick={sendBulkWhatsAppReminders}
+            disabled={sendingBulkWhatsApp || studentsWithPhones.length === 0}
+            className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            title={`Send WhatsApp reminders to ${studentsWithPhones.length} students with phone numbers`}
+          >
+            {sendingBulkWhatsApp ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <MessageCircle className="w-4 h-4" />
+            )}
+            <span>
+              {sendingBulkWhatsApp
+                ? 'Opening WhatsApp...'
+                : `Bulk WhatsApp (${studentsWithPhones.length})`
               }
             </span>
           </button>
