@@ -38,6 +38,7 @@ const ExternalFeeManagement: React.FC = () => {
   const [showFeeDetailsModal, setShowFeeDetailsModal] = useState(false);
   const [editingPayment, setEditingPayment] = useState<ExternalFeePayment | null>(null);
   const [paymentLinks, setPaymentLinks] = useState<any[]>([]);
+  const [showAllLinks, setShowAllLinks] = useState(false);
   const [generatingLink, setGeneratingLink] = useState(false);
   const [selectedPaymentForLink, setSelectedPaymentForLink] = useState<ExternalFeePayment | null>(null);
   const [feeDetails, setFeeDetails] = useState({
@@ -1126,7 +1127,7 @@ const ExternalFeeManagement: React.FC = () => {
       {paymentLinks.length > 0 && (
         <div className="bg-white rounded-xl border border-secondary-200 p-4 lg:p-6 shadow-soft mt-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-secondary-800">Recent Payment Links</h3>
+            <h3 className="text-lg font-semibold text-secondary-800">All Payment Links</h3>
             <span className="text-sm text-secondary-600">{paymentLinks.length} active links</span>
           </div>
 
@@ -1141,7 +1142,7 @@ const ExternalFeeManagement: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-secondary-100">
-                {paymentLinks.slice(0, 5).map((link) => (
+                {(showAllLinks ? paymentLinks : paymentLinks.slice(0, 10)).map((link) => (
                   <tr key={link.id} className="hover:bg-secondary-50 transition-colors">
                     <td className="py-3 px-4">
                       <div>
@@ -1194,6 +1195,21 @@ const ExternalFeeManagement: React.FC = () => {
               </tbody>
             </table>
           </div>
+
+          {/* Show More/Show Less Button */}
+          {paymentLinks.length > 10 && (
+            <div className="mt-4 text-center border-t border-secondary-200 pt-4">
+              <button
+                onClick={() => setShowAllLinks(!showAllLinks)}
+                className="text-primary-600 hover:text-primary-700 font-medium text-sm transition-colors"
+              >
+                {showAllLinks
+                  ? `Show Less (Showing all ${paymentLinks.length} links)`
+                  : `Show All ${paymentLinks.length} Payment Links (Currently showing 10)`
+                }
+              </button>
+            </div>
+          )}
         </div>
       )}
 
