@@ -121,7 +121,7 @@ const AddFeePaymentModal: React.FC<AddFeePaymentModalProps> = ({
       // Create receipt record if payment was made
       if (formData.payment_amount > 0) {
         const receiptNumber = `RCP-${Date.now()}`;
-        
+
         await supabase
           .from('fee_receipts')
           .insert([{
@@ -136,6 +136,23 @@ const AddFeePaymentModal: React.FC<AddFeePaymentModalProps> = ({
             description: formData.description,
             created_at: new Date().toISOString()
           }]);
+
+        // Create transaction record for accounts section
+        await supabase
+          .from('transactions')
+          .insert([{
+            type: 'income',
+            date: formData.payment_date,
+            amount: formData.payment_amount,
+            category: 'Student Fees',
+            sub_category: `${selectedStudent?.first_name} ${selectedStudent?.last_name}`,
+            related_id: formData.student_id,
+            payment_mode: formData.payment_method,
+            description: `Fee payment - ${selectedStudent?.first_name} ${selectedStudent?.last_name} - ${selectedCourse?.name || 'General Fee'}`,
+            source: 'fee_receipt'
+          }]);
+
+        console.log('✅ Created transaction record for accounts section');
       }
 
       onFeeAdded();

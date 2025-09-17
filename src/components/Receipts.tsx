@@ -93,6 +93,10 @@ const Receipts: React.FC = () => {
       } else {
         await supabase.from('receipts').insert(receiptData);
       }
+
+      // Note: We don't create a transaction record here because no payment has been made yet
+      // The transaction will be created when the user enters a paid amount in the receipt
+
       await load();
       alert(`Student admission completed! Receipt created with course fee QAR ${coursePrice.toLocaleString()}. Ready for printing.`);
     } catch (error) {
@@ -132,6 +136,53 @@ const Receipts: React.FC = () => {
         res = await supabase.from('receipts').insert(payload).select().single();
       }
       if (res.error) throw res.error;
+
+      // Create transaction record for accounts section if amount is paid
+      if (editing.amount_paying > 0 && editing.student_id) {
+        try {
+          // Get student details for transaction description
+          const { data: studentData } = await supabase
+            .from('students')
+            .select('first_name, last_name')
+            .eq('id', editing.student_id)
+            .single();
+
+          // Check if transaction already exists to prevent duplicates
+          const { data: existingTransaction } = await supabase
+            .from('transactions')
+            .select('id')
+            .eq('related_id', editing.student_id)
+            .eq('amount', editing.amount_paying)
+            .eq('date', new Date().toISOString().split('T')[0])
+            .eq('source', 'receipt_payment')
+            .single();
+
+          if (!existingTransaction) {
+            // Create transaction record for accounts section
+            await supabase
+              .from('transactions')
+              .insert([{
+                type: 'income',
+                date: new Date().toISOString().split('T')[0],
+                amount: editing.amount_paying,
+                category: 'Student Fees',
+                sub_category: studentData ? `${studentData.first_name} ${studentData.last_name}` : 'Student Payment',
+                related_id: editing.student_id,
+                payment_mode: 'cash', // Default payment mode
+                description: `Receipt payment - ${studentData ? `${studentData.first_name} ${studentData.last_name}` : 'Student'} - Course fee payment`,
+                source: 'receipt_payment'
+              }]);
+
+            console.log('✅ Created transaction record for accounts section');
+          } else {
+            console.log('ℹ️ Transaction already exists, skipping duplicate');
+          }
+        } catch (transactionError) {
+          console.error('Error creating transaction record:', transactionError);
+          // Don't fail the receipt save if transaction creation fails
+        }
+      }
+
       setEditing(null);
       await load();
     } catch (e) {
