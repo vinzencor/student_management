@@ -47,6 +47,8 @@ const ExternalFeeManagement: React.FC = () => {
     dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
     description: ''
   });
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [linkToDelete, setLinkToDelete] = useState<any>(null);
 
   useEffect(() => {
     fetchPayments();
@@ -543,6 +545,37 @@ const ExternalFeeManagement: React.FC = () => {
   const getPaymentUrl = (token: string) => {
     // Use the current domain (works for both localhost and Vercel)
     return `${window.location.origin}/external-payment/${token}`;
+  };
+
+  const handleDeleteLink = (link: any) => {
+    setLinkToDelete(link);
+    setShowDeleteConfirmation(true);
+  };
+
+  const confirmDeleteLink = async () => {
+    if (!linkToDelete) return;
+
+    try {
+      const { error } = await supabase
+        .from('external_payment_links')
+        .delete()
+        .eq('id', linkToDelete.id);
+
+      if (error) throw error;
+
+      alert('Payment link deleted successfully!');
+      setShowDeleteConfirmation(false);
+      setLinkToDelete(null);
+      fetchPaymentLinks(); // Refresh the list
+    } catch (error) {
+      console.error('Error deleting payment link:', error);
+      alert('Failed to delete payment link. Please try again.');
+    }
+  };
+
+  const cancelDeleteLink = () => {
+    setShowDeleteConfirmation(false);
+    setLinkToDelete(null);
   };
 
   const filteredPayments = payments.filter(payment => {
@@ -1188,6 +1221,13 @@ const ExternalFeeManagement: React.FC = () => {
                         >
                           <Send className="w-4 h-4" />
                         </button>
+                        <button
+                          onClick={() => handleDeleteLink(link)}
+                          className="p-1 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete Link"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -1314,6 +1354,79 @@ const ExternalFeeManagement: React.FC = () => {
                   {generatingLink ? 'Generating...' : 'Generate Payment Link'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirmation && linkToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-large max-w-md w-full">
+            <div className="flex items-center justify-between p-6 border-b border-secondary-200">
+              <h3 className="text-xl font-bold text-secondary-800">Delete Payment Link</h3>
+              <button
+                onClick={cancelDeleteLink}
+                className="p-2 hover:bg-secondary-100 rounded-lg transition-colors"
+              >
+                <XCircle className="w-6 h-6 text-secondary-600" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                <h4 className="font-semibold text-red-800 mb-2">⚠️ Warning</h4>
+                <p className="text-red-700 text-sm">
+                  This action cannot be undone. The payment link will be permanently deleted.
+                </p>
+              </div>
+
+              <div className="bg-secondary-50 border border-secondary-200 rounded-lg p-4">
+                <h4 className="font-semibold text-secondary-800 mb-2">Payment Link Details</h4>
+                <div className="space-y-2 text-sm">
+                  <div>
+                    <span className="font-medium text-secondary-700">Student:</span>
+                    <span className="ml-2 text-secondary-600">{linkToDelete.student_name}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-secondary-700">Class:</span>
+                    <span className="ml-2 text-secondary-600">{linkToDelete.student_class}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-secondary-700">Parent:</span>
+                    <span className="ml-2 text-secondary-600">{linkToDelete.parent_name}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-secondary-700">Status:</span>
+                    <span className={`ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${
+                      linkToDelete.status === 'active' ? 'bg-success-100 text-success-800' :
+                      linkToDelete.status === 'used' ? 'bg-primary-100 text-primary-800' :
+                      'bg-red-100 text-red-800'
+                    }`}>
+                      {linkToDelete.status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-secondary-600 text-sm">
+                Are you sure you want to delete this payment link? This will remove the link permanently and parents will no longer be able to use it for payments.
+              </p>
+            </div>
+
+            <div className="flex justify-end space-x-4 p-6 border-t border-secondary-200">
+              <button
+                onClick={cancelDeleteLink}
+                className="px-4 py-2 border border-secondary-300 text-secondary-700 rounded-lg hover:bg-secondary-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteLink}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Delete Link
+              </button>
             </div>
           </div>
         </div>

@@ -32,7 +32,7 @@ const StudentAdmissionModal: React.FC<StudentAdmissionModalProps> = ({
     address: '',
     religion: '',
     nationality: 'Indian',
-    blood_group: '',
+    // blood_group: '', // Removed - not in database schema
     medical_conditions: '',
     emergency_contact_name: '',
     emergency_contact_phone: '',
@@ -136,12 +136,20 @@ const StudentAdmissionModal: React.FC<StudentAdmissionModalProps> = ({
         photoUrl = 'placeholder-photo-url';
       }
 
-      // 3. Create student
+      // 3. Create student - only include fields that exist in database schema
       const studentData = {
-        ...studentForm,
-        parent_id: parentId,
-        photo_url: photoUrl,
-        course_id: selectedCourses[0]?.id || '' // Set primary course
+        first_name: studentForm.first_name,
+        last_name: studentForm.last_name,
+        email: studentForm.email,
+        phone: studentForm.phone,
+        date_of_birth: studentForm.date_of_birth || undefined,
+        grade_level: studentForm.grade_level,
+        enrollment_date: studentForm.enrollment_date,
+        status: studentForm.status,
+        subjects: studentForm.subjects,
+        address: studentForm.address,
+        parent_id: parentId
+        // Note: photo_url and course_id are not in the students table schema
       };
       const createdStudent = await DataService.createStudent(studentData);
 
