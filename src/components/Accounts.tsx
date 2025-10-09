@@ -77,17 +77,16 @@ const Accounts: React.FC = () => {
     loadCourses();
   }, []);
 
-  // Show recent transactions (last 30 days)
+  // Show all transactions (removed 30-day filtering to ensure all transactions appear)
   useEffect(() => {
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    // For now, show all transactions to ensure consistency between Overview and Income sections
+    setFilteredTransactions(transactions);
 
-    const filtered = transactions.filter(transaction => {
-      const transactionDate = new Date(transaction.date);
-      return transactionDate >= thirtyDaysAgo;
+    console.log('🔍 Transaction filtering debug:', {
+      totalTransactions: transactions.length,
+      incomeTransactions: transactions.filter(t => t.type === 'income').length,
+      expenseTransactions: transactions.filter(t => t.type === 'expense').length
     });
-
-    setFilteredTransactions(filtered);
   }, [transactions]);
 
   // Load students for fee-related transactions
@@ -517,22 +516,23 @@ const Accounts: React.FC = () => {
 
   const calculateSummary = () => {
     // Calculate totals from all transactions (includes all income sources)
+    // Convert amounts to numbers to ensure proper addition
     const totalIncome = filteredTransactions
       .filter(t => t.type === 'income')
-      .reduce((sum, t) => sum + t.amount, 0);
+      .reduce((sum, t) => sum + Number(t.amount), 0);
 
     const totalExpenses = filteredTransactions
       .filter(t => t.type === 'expense')
-      .reduce((sum, t) => sum + t.amount, 0);
+      .reduce((sum, t) => sum + Number(t.amount), 0);
 
     // Separate fee-related income from manual income for clarity
     const feeIncome = filteredTransactions
       .filter(t => t.type === 'income' && (t.source === 'external_payment' || t.source === 'fee_management'))
-      .reduce((sum, t) => sum + t.amount, 0);
+      .reduce((sum, t) => sum + Number(t.amount), 0);
 
     const manualIncome = filteredTransactions
       .filter(t => t.type === 'income' && t.source === 'manual')
-      .reduce((sum, t) => sum + t.amount, 0);
+      .reduce((sum, t) => sum + Number(t.amount), 0);
 
     return {
       totalIncome,
@@ -701,7 +701,19 @@ const Accounts: React.FC = () => {
               const categoryTransactions = filteredTransactions.filter(t =>
                 t.type === 'income' && t.category === category.value
               );
-              const categoryTotal = categoryTransactions.reduce((sum, t) => sum + t.amount, 0);
+              const categoryTotal = categoryTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
+
+              // Debug logging for Student Fees category
+              if (category.value === 'Student Fees') {
+                console.log('🔍 Student Fees category debug:', {
+                  categoryValue: category.value,
+                  totalFilteredTransactions: filteredTransactions.length,
+                  incomeTransactions: filteredTransactions.filter(t => t.type === 'income').length,
+                  studentFeesTransactions: categoryTransactions.length,
+                  categoryTotal: categoryTotal,
+                  transactionIds: categoryTransactions.map(t => ({ id: t.id, amount: t.amount, date: t.date }))
+                });
+              }
 
               if (categoryTotal === 0) return null;
 
@@ -740,7 +752,7 @@ const Accounts: React.FC = () => {
               const categoryTransactions = filteredTransactions.filter(t =>
                 t.type === 'expense' && t.category === category.value
               );
-              const categoryTotal = categoryTransactions.reduce((sum, t) => sum + t.amount, 0);
+              const categoryTotal = categoryTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
 
               if (categoryTotal === 0) return null;
 
@@ -768,7 +780,7 @@ const Accounts: React.FC = () => {
             <div>
               <h2 className="text-xl font-bold text-secondary-800">Transactions</h2>
               <p className="text-sm text-secondary-600 mt-1">
-                Showing {filteredTransactions.length} recent transactions (last 30 days)
+                Showing {filteredTransactions.length} transactions
               </p>
             </div>
             <button
@@ -863,7 +875,7 @@ const Accounts: React.FC = () => {
                       <span className={`font-semibold ${
                         transaction.type === 'income' ? 'text-success-600' : 'text-red-600'
                       }`}>
-                        {transaction.type === 'income' ? '+' : '-'}QAR{transaction.amount.toLocaleString()}
+                        {transaction.type === 'income' ? '+' : '-'}QAR{Number(transaction.amount).toLocaleString()}
                       </span>
                     </td>
                     <td className="py-4 px-6 text-secondary-600">{transaction.payment_mode}</td>

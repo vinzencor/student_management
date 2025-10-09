@@ -106,18 +106,22 @@ const AttendanceManagement: React.FC = () => {
           });
 
           if (result.success) {
-            console.log('Attendance-based email reminder sent successfully');
+            console.log('✅ Attendance-based email reminder sent successfully');
 
-            // Show a notification to the user
+            // Show a notification to the user (optional - can be removed if too intrusive)
             const studentName = `${student.first_name} ${student.last_name}`;
-            alert(`📧 Fee reminder email sent to ${studentName} (${attendanceDays} days attended)`);
+            console.log(`📧 Fee reminder email sent to ${studentName} (${attendanceDays} days attended)`);
+            // Removed alert to avoid interrupting user workflow
           } else {
-            console.error('Failed to send attendance-based email reminder:', result.error);
+            console.error('❌ Failed to send attendance-based email reminder:', result.error);
+            // Don't show user alert for email failures - just log the error
           }
         }
       }
     } catch (error) {
-      console.error('Error in attendance email trigger check:', error);
+      console.error('❌ Error in attendance email trigger check:', error);
+      // Don't throw error - this should not block attendance saving
+      // Email reminder failures are non-critical for attendance functionality
     }
   };
 
@@ -326,7 +330,11 @@ const AttendanceManagement: React.FC = () => {
 
                 // Check for attendance-based email triggers if status is 'P' (Present)
                 if (record.status === 'P' && record.student_id) {
-                  checkAttendanceEmailTrigger(record.student_id);
+                  // Run email trigger check asynchronously without blocking attendance save
+                  checkAttendanceEmailTrigger(record.student_id).catch(error => {
+                    console.error('Email reminder check failed (non-blocking):', error);
+                    // Don't throw error - attendance save should succeed even if email fails
+                  });
                 }
               }
             }

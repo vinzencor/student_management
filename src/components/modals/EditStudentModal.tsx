@@ -139,6 +139,85 @@ const EditStudentModal: React.FC<EditStudentModalProps> = ({
     return selectedCourses.reduce((total, course) => total + course.price, 0);
   };
 
+  const syncFeeRecordsWithCourses = async (studentId: string, removedCourseIds: string[], addedCourseIds: string[], allSelectedCourses: any[]) => {
+    try {
+      console.log('🔄 Syncing fee records with course changes...');
+
+      // Handle removed courses - remove or mark as inactive fee records for removed courses
+      if (removedCourseIds.length > 0) {
+        console.log('❌ Removing fee records for courses:', removedCourseIds);
+
+        // Get fee records for removed courses that haven't been paid
+        const { data: unpaidFees } = await supabase
+          .from('fees')
+          .select('*')
+          .eq('student_id', studentId)
+          .in('course_id', removedCourseIds)
+          .in('status', ['pending', 'partial']);
+
+        // Delete unpaid fee records for removed courses
+        if (unpaidFees && unpaidFees.length > 0) {
+          await supabase
+            .from('fees')
+            .delete()
+            .eq('student_id', studentId)
+            .in('course_id', removedCourseIds)
+            .in('status', ['pending', 'partial']);
+
+          console.log(`✅ Removed ${unpaidFees.length} unpaid fee records for removed courses`);
+        }
+
+        // For paid fees, we keep them but mark them as completed/historical
+        const { data: paidFees } = await supabase
+          .from('fees')
+          .select('*')
+          .eq('student_id', studentId)
+          .in('course_id', removedCourseIds)
+          .eq('status', 'paid');
+
+        if (paidFees && paidFees.length > 0) {
+          console.log(`ℹ️ Keeping ${paidFees.length} paid fee records for removed courses (historical data)`);
+        }
+      }
+
+      // Handle added courses - create fee records for new courses
+      if (addedCourseIds.length > 0) {
+        console.log('➕ Creating fee records for new courses:', addedCourseIds);
+
+        const newFeeRecords = [];
+        for (const courseId of addedCourseIds) {
+          const course = allSelectedCourses.find(c => c.id === courseId);
+          if (course) {
+            newFeeRecords.push({
+              student_id: studentId,
+              course_id: courseId,
+              amount: course.price,
+              paid_amount: 0,
+              status: 'pending',
+              due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
+              fee_type: 'tuition',
+              description: `Course fee for ${course.name}`,
+              created_at: new Date().toISOString()
+            });
+          }
+        }
+
+        if (newFeeRecords.length > 0) {
+          await supabase
+            .from('fees')
+            .insert(newFeeRecords);
+
+          console.log(`✅ Created ${newFeeRecords.length} fee records for new courses`);
+        }
+      }
+
+      console.log('✅ Fee records synchronized with course changes');
+    } catch (error) {
+      console.error('❌ Error syncing fee records:', error);
+      // Don't throw error to avoid breaking the student update
+    }
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -181,8 +260,31 @@ const EditStudentModal: React.FC<EditStudentModalProps> = ({
         }
       }
 
-      // Update course enrollments
+      // Update course enrollments and sync fee records
       try {
+        // Get current enrolled courses before making changes
+        const { data: currentEnrollments } = await supabase
+          .from('student_courses')
+          .select('course_id, courses(id, name, price)')
+          .eq('student_id', student.id)
+          .eq('status', 'active');
+
+        const currentCourseIds = currentEnrollments?.map(e => e.course_id) || [];
+        const newCourseIds = selectedCourses.map(c => c.id);
+
+        // Find courses that are being removed
+        const removedCourseIds = currentCourseIds.filter(id => !newCourseIds.includes(id));
+
+        // Find courses that are being added
+        const addedCourseIds = newCourseIds.filter(id => !currentCourseIds.includes(id));
+
+        console.log('🔄 Course changes:', {
+          current: currentCourseIds,
+          new: newCourseIds,
+          removed: removedCourseIds,
+          added: addedCourseIds
+        });
+
         // First, remove all existing enrollments
         await supabase
           .from('student_courses')
@@ -200,6 +302,10 @@ const EditStudentModal: React.FC<EditStudentModalProps> = ({
               status: 'active'
             }]);
         }
+
+        // Sync fee records with course changes
+        await syncFeeRecordsWithCourses(student.id, removedCourseIds, addedCourseIds, selectedCourses);
+
       } catch (courseError: any) {
         console.warn('Error updating course enrollments:', courseError);
         // Don't fail the entire update for course enrollment issues
