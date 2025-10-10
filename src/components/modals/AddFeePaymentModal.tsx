@@ -97,26 +97,67 @@ const AddFeePaymentModal: React.FC<AddFeePaymentModalProps> = ({
     setError('');
 
     try {
-      // Create fee record
-      const { data: feeRecord, error: feeError } = await supabase
+      // Check if a fee record already exists for this student with the same fee_type and description
+      const { data: existingFees, error: checkError } = await supabase
         .from('fees')
-        .insert([{
-          student_id: formData.student_id,
-          amount: formData.fee_amount,
-          paid_amount: formData.payment_amount,
-          status: formData.payment_amount >= formData.fee_amount ? 'paid' :
-                  formData.payment_amount > 0 ? 'partial' : 'pending',
-          due_date: formData.due_date,
-          paid_date: formData.payment_amount > 0 ? formData.payment_date : null,
-          payment_method: formData.payment_amount > 0 ? formData.payment_method : null,
-          fee_type: 'tuition',
-          description: formData.description,
-          created_at: new Date().toISOString()
-        }])
-        .select()
-        .single();
+        .select('*')
+        .eq('student_id', formData.student_id)
+        .eq('fee_type', 'tuition')
+        .eq('description', formData.description);
 
-      if (feeError) throw feeError;
+      if (checkError) throw checkError;
+
+      let feeRecord;
+
+      if (existingFees && existingFees.length > 0) {
+        // Update existing fee record
+        const existingFee = existingFees[0];
+        const newPaidAmount = (existingFee.paid_amount || 0) + formData.payment_amount;
+        const newStatus = newPaidAmount >= formData.fee_amount ? 'paid' :
+                         newPaidAmount > 0 ? 'partial' : 'pending';
+
+        const { data: updatedFee, error: updateError } = await supabase
+          .from('fees')
+          .update({
+            amount: Math.max(formData.fee_amount, existingFee.amount), // Use the higher amount
+            paid_amount: newPaidAmount,
+            status: newStatus,
+            due_date: formData.due_date,
+            paid_date: newStatus === 'paid' ? formData.payment_date : existingFee.paid_date,
+            payment_method: formData.payment_method,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingFee.id)
+          .select()
+          .single();
+
+        if (updateError) throw updateError;
+        feeRecord = updatedFee;
+        console.log('✅ Updated existing fee record');
+      } else {
+        // Create new fee record
+        const { data: newFee, error: insertError } = await supabase
+          .from('fees')
+          .insert([{
+            student_id: formData.student_id,
+            amount: formData.fee_amount,
+            paid_amount: formData.payment_amount,
+            status: formData.payment_amount >= formData.fee_amount ? 'paid' :
+                    formData.payment_amount > 0 ? 'partial' : 'pending',
+            due_date: formData.due_date,
+            paid_date: formData.payment_amount > 0 ? formData.payment_date : null,
+            payment_method: formData.payment_amount > 0 ? formData.payment_method : null,
+            fee_type: 'tuition',
+            description: formData.description,
+            created_at: new Date().toISOString()
+          }])
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+        feeRecord = newFee;
+        console.log('✅ Created new fee record');
+      }
 
       // Create receipt record if payment was made
       if (formData.payment_amount > 0) {

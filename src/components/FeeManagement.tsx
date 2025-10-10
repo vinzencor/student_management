@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { DollarSign, CheckCircle, AlertTriangle, Clock, Plus, Search, Filter, Send, RotateCcw } from 'lucide-react';
+import { DollarSign, CheckCircle, AlertTriangle, Clock, Plus, Search, Filter, Send, RotateCcw, MessageCircle } from 'lucide-react';
 import { EmailService } from '../services/emailService';
+import { WhatsAppService } from '../services/whatsappService';
 import { supabase } from '../lib/supabase';
 import type { Fee } from '../lib/supabase';
 import AddFeeModal from './modals/AddFeeModal';
@@ -15,6 +16,9 @@ const FeeManagement: React.FC = () => {
   const [courseFilter, setCourseFilter] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [sendingReminders, setSendingReminders] = useState(false);
+  const [sendingWhatsApp, setSendingWhatsApp] = useState<Set<string>>(new Set());
+  const [sendingBulkWhatsApp, setSendingBulkWhatsApp] = useState(false);
+  const [whatsappConfirmFee, setWhatsappConfirmFee] = useState<Fee | null>(null);
   const [selectedFees, setSelectedFees] = useState<string[]>([]);
   const [payingFee, setPayingFee] = useState<any | null>(null);
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
@@ -332,6 +336,72 @@ const FeeManagement: React.FC = () => {
     }
   };
 
+  const handleWhatsAppReminder = (fee: Fee) => {
+    // Check if phone number is available
+    const phoneNumber = WhatsAppService.getContactPhone(fee.student);
+    if (!phoneNumber) {
+      alert(`❌ No phone number found for ${fee.student?.first_name} ${fee.student?.last_name}`);
+      return;
+    }
+
+    // Show confirmation dialog
+    setWhatsappConfirmFee(fee);
+  };
+
+  const confirmWhatsAppReminder = async () => {
+    if (!whatsappConfirmFee) return;
+
+    try {
+      setSendingWhatsApp(prev => new Set(prev).add(whatsappConfirmFee.id));
+
+      await WhatsAppService.sendFeeReminder(whatsappConfirmFee);
+      const phoneNumber = WhatsAppService.getContactPhone(whatsappConfirmFee.student);
+      alert(`✅ WhatsApp opened for ${whatsappConfirmFee.student?.first_name} ${whatsappConfirmFee.student?.last_name} (${phoneNumber})`);
+
+    } catch (error: any) {
+      console.error('Error sending WhatsApp reminder:', error);
+      alert(`❌ Failed to send WhatsApp reminder: ${error.message || 'Unknown error'}`);
+    } finally {
+      setSendingWhatsApp(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(whatsappConfirmFee.id);
+        return newSet;
+      });
+      setWhatsappConfirmFee(null);
+    }
+  };
+
+  const handleBulkWhatsAppReminders = async () => {
+    if (selectedFees.length === 0) {
+      alert('Please select fees to send WhatsApp reminders for.');
+      return;
+    }
+
+    try {
+      setSendingBulkWhatsApp(true);
+
+      // Filter fees that have phone numbers
+      const feesWithPhones = fees.filter(fee =>
+        selectedFees.includes(fee.id) && WhatsAppService.getContactPhone(fee.student)
+      );
+
+      if (feesWithPhones.length === 0) {
+        alert('❌ No phone numbers found for selected students.');
+        return;
+      }
+
+      const result = await WhatsAppService.sendBulkFeeReminders(feesWithPhones);
+      alert(`✅ WhatsApp reminders sent!\n✅ Opened: ${result.sent}\n❌ Failed: ${result.failed}`);
+      setSelectedFees([]);
+
+    } catch (error: any) {
+      console.error('Error sending bulk WhatsApp reminders:', error);
+      alert(`❌ Failed to send bulk WhatsApp reminders: ${error.message || 'Unknown error'}`);
+    } finally {
+      setSendingBulkWhatsApp(false);
+    }
+  };
+
   const handleFeeSelection = (feeId: string) => {
     setSelectedFees(prev =>
       prev.includes(feeId)
@@ -539,16 +609,28 @@ const FeeManagement: React.FC = () => {
             <span>Refresh</span>
           </button>
           {selectedFees.length > 0 && (
-            <button
-              onClick={handleBulkReminders}
-              disabled={sendingReminders}
-              className="flex items-center space-x-2 bg-warning-600 hover:bg-warning-700 text-white px-4 py-2.5 rounded-xl transition-colors shadow-soft hover:shadow-medium disabled:opacity-50"
-            >
-              <Send className="w-5 h-5" />
-              <span className="font-medium">
-                {sendingReminders ? 'Sending...' : `Send ${selectedFees.length} Reminders`}
-              </span>
-            </button>
+            <>
+              <button
+                onClick={handleBulkReminders}
+                disabled={sendingReminders}
+                className="flex items-center space-x-2 bg-warning-600 hover:bg-warning-700 text-white px-4 py-2.5 rounded-xl transition-colors shadow-soft hover:shadow-medium disabled:opacity-50"
+              >
+                <Send className="w-5 h-5" />
+                <span className="font-medium">
+                  {sendingReminders ? 'Sending...' : `Send ${selectedFees.length} Email Reminders`}
+                </span>
+              </button>
+              <button
+                onClick={handleBulkWhatsAppReminders}
+                disabled={sendingBulkWhatsApp}
+                className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl transition-colors shadow-soft hover:shadow-medium disabled:opacity-50"
+              >
+                <MessageCircle className="w-5 h-5" />
+                <span className="font-medium">
+                  {sendingBulkWhatsApp ? 'Opening...' : `Send ${selectedFees.length} WhatsApp Reminders`}
+                </span>
+              </button>
+            </>
           )}
           <button
             onClick={() => setShowAddModal(true)}
@@ -785,36 +867,57 @@ const FeeManagement: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex space-x-2">
-                        {(fee.remaining_amount || 0) > 0 && (
+                      <div className="flex flex-col space-y-2">
+                        <div className="flex space-x-2">
+                          {(fee.remaining_amount || 0) > 0 && (
+                            <button
+                              onClick={() => openPaymentModal(fee)}
+                              className={`flex items-center space-x-1 px-3 py-1 rounded text-sm font-medium ${
+                                fee.status === 'warning' || fee.status === 'overdue'
+                                  ? 'bg-orange-600 hover:bg-orange-700 text-white'
+                                  : 'bg-success-600 hover:bg-success-700 text-white'
+                              }`}
+                            >
+                              <DollarSign className="w-4 h-4" />
+                              <span>
+                                {fee.status === 'overdue' ? 'Pay Overdue' :
+                                 fee.status === 'warning' ? 'Pay Due Soon' :
+                                 'Pay Fees'}
+                              </span>
+                            </button>
+                          )}
+                          {(fee.remaining_amount || 0) === 0 && fee.status === 'paid' && (
+                            <div className="flex flex-col">
+                              <span className="text-success-600 text-sm font-medium">✓ Fully Paid</span>
+                              {getNextDueDate(fee) && getDaysUntilDue(fee) !== null && getDaysUntilDue(fee)! <= 30 && (
+                                <span className="text-xs text-blue-600">
+                                  Next payment in {getDaysUntilDue(fee)} days
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {(fee.remaining_amount || 0) === 0 && fee.status === 'overdue' && (
+                            <span className="text-orange-600 text-sm font-medium">⚠️ Next Payment Due</span>
+                          )}
+                        </div>
+
+                        {/* WhatsApp Reminder Button */}
+                        {(fee.remaining_amount || 0) > 0 && WhatsAppService.getContactPhone(fee.student) && (
                           <button
-                            onClick={() => openPaymentModal(fee)}
-                            className={`flex items-center space-x-1 px-3 py-1 rounded text-sm font-medium ${
-                              fee.status === 'warning' || fee.status === 'overdue'
-                                ? 'bg-orange-600 hover:bg-orange-700 text-white'
-                                : 'bg-success-600 hover:bg-success-700 text-white'
-                            }`}
+                            onClick={() => handleWhatsAppReminder(fee)}
+                            disabled={sendingWhatsApp.has(fee.id) || sendingBulkWhatsApp}
+                            className="flex items-center space-x-1 bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={`Send WhatsApp reminder to ${WhatsAppService.getContactPhone(fee.student)}`}
                           >
-                            <DollarSign className="w-4 h-4" />
+                            {sendingWhatsApp.has(fee.id) ? (
+                              <RotateCcw className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <MessageCircle className="w-4 h-4" />
+                            )}
                             <span>
-                              {fee.status === 'overdue' ? 'Pay Overdue' :
-                               fee.status === 'warning' ? 'Pay Due Soon' :
-                               'Pay Fees'}
+                              {sendingWhatsApp.has(fee.id) ? 'Opening...' : 'WhatsApp'}
                             </span>
                           </button>
-                        )}
-                        {(fee.remaining_amount || 0) === 0 && fee.status === 'paid' && (
-                          <div className="flex flex-col">
-                            <span className="text-success-600 text-sm font-medium">✓ Fully Paid</span>
-                            {getNextDueDate(fee) && getDaysUntilDue(fee) !== null && getDaysUntilDue(fee)! <= 30 && (
-                              <span className="text-xs text-blue-600">
-                                Next payment in {getDaysUntilDue(fee)} days
-                              </span>
-                            )}
-                          </div>
-                        )}
-                        {(fee.remaining_amount || 0) === 0 && fee.status === 'overdue' && (
-                          <span className="text-orange-600 text-sm font-medium">⚠️ Next Payment Due</span>
                         )}
                       </div>
                     </td>
@@ -905,6 +1008,62 @@ const FeeManagement: React.FC = () => {
                 className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 disabled:opacity-50"
               >
                 {loading ? 'Processing...' : 'Record Payment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* WhatsApp Confirmation Modal */}
+      {whatsappConfirmFee && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4 flex items-center">
+              <MessageCircle className="w-5 h-5 text-green-600 mr-2" />
+              Send WhatsApp Reminder
+            </h3>
+
+            <div className="space-y-4">
+              <div className="bg-secondary-50 p-4 rounded-lg">
+                <p className="text-sm text-secondary-700">
+                  <strong>Student:</strong> {whatsappConfirmFee.student?.first_name} {whatsappConfirmFee.student?.last_name}
+                </p>
+                <p className="text-sm text-secondary-700">
+                  <strong>Phone:</strong> {WhatsAppService.getContactPhone(whatsappConfirmFee.student)}
+                </p>
+                <p className="text-sm text-secondary-700">
+                  <strong>Amount Due:</strong> QAR {Math.max(0, (whatsappConfirmFee.amount || 0) - (whatsappConfirmFee.paid_amount || 0)).toLocaleString()}
+                </p>
+              </div>
+
+              <p className="text-sm text-secondary-600">
+                This will open WhatsApp with a pre-filled fee reminder message. You can review and edit the message before sending.
+              </p>
+            </div>
+
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={() => setWhatsappConfirmFee(null)}
+                className="flex-1 px-4 py-2 border border-secondary-300 text-secondary-700 rounded-lg hover:bg-secondary-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmWhatsAppReminder}
+                disabled={sendingWhatsApp.has(whatsappConfirmFee.id)}
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center"
+              >
+                {sendingWhatsApp.has(whatsappConfirmFee.id) ? (
+                  <>
+                    <RotateCcw className="w-4 h-4 animate-spin mr-2" />
+                    Opening...
+                  </>
+                ) : (
+                  <>
+                    <MessageCircle className="w-4 h-4 mr-2" />
+                    Open WhatsApp
+                  </>
+                )}
               </button>
             </div>
           </div>

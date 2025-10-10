@@ -60,10 +60,12 @@ const AccountantDashboard: React.FC = () => {
 
   const getOverdueFees = () => {
     const today = new Date();
-    return fees.filter(fee => 
-      fee.status === 'pending' && 
-      new Date(fee.due_date) < today
-    );
+    return fees.filter(fee => {
+      const remainingAmount = fee.amount - (fee.paid_amount || 0);
+      return remainingAmount > 0 &&
+             fee.status !== 'paid' &&
+             new Date(fee.due_date) < today;
+    });
   };
 
   const getPendingSalaries = () => {

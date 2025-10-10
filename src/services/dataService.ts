@@ -525,11 +525,26 @@ export class DataService {
         .select('*', { count: 'exact', head: true })
         .in('status', ['new', 'contacted', 'interested'])
 
-      // Get pending fees count
-      const { count: pendingFees } = await supabase
+      // Get pending fees count - count students with unpaid fees
+      // This includes 'pending', 'overdue', 'partial', and 'warning' status fees
+      const { data: feesWithBalance, error: feesError } = await supabase
         .from('fees')
-        .select('*', { count: 'exact', head: true })
-        .in('status', ['pending', 'overdue'])
+        .select('student_id, amount, paid_amount')
+        .neq('status', 'paid')
+
+      if (feesError) throw feesError
+
+      // Count unique students with remaining balance
+      const studentsWithPendingFees = new Set()
+      if (feesWithBalance) {
+        feesWithBalance.forEach(fee => {
+          const remaining = fee.amount - (fee.paid_amount || 0)
+          if (remaining > 0) {
+            studentsWithPendingFees.add(fee.student_id)
+          }
+        })
+      }
+      const pendingFees = studentsWithPendingFees.size
 
       // Get today's attendance percentage
       const today = new Date().toISOString().split('T')[0]
