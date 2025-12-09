@@ -4,7 +4,7 @@ import { DataService } from '../services/dataService';
 import { supabase } from '../lib/supabase';
 import { EmailNotificationService } from '../services/emailNotificationService';
 
-type AttendanceStatus = 'P' | 'A' | 'H'; // Present, Absent, Holiday
+type AttendanceStatus = 'P' | 'A' | 'H' | ''; // Present, Absent, Holiday, Unselected
 
 interface AttendanceRecord {
   id?: string;
@@ -191,7 +191,7 @@ const AttendanceManagement: React.FC = () => {
           console.error('Error loading attendance data:', attendanceError);
         }
 
-        // Create attendance records for all students (default to Present)
+        // Create attendance records for all students (default to unselected)
         const attendanceMap = new Map();
         (attendanceData || []).forEach(record => {
           attendanceMap.set(record.student_id, record);
@@ -202,7 +202,7 @@ const AttendanceManagement: React.FC = () => {
           return existing || {
             date: selectedDate,
             student_id: student.id,
-            status: 'P' as AttendanceStatus,
+            status: '' as AttendanceStatus,
             notes: ''
           };
         });
@@ -230,7 +230,7 @@ const AttendanceManagement: React.FC = () => {
           console.error('Error loading staff attendance data:', attendanceError);
         }
 
-        // Create attendance records for all staff (default to Present)
+        // Create attendance records for all staff (default to unselected)
         const attendanceMap = new Map();
         (attendanceData || []).forEach(record => {
           attendanceMap.set(record.staff_id, record);
@@ -241,7 +241,7 @@ const AttendanceManagement: React.FC = () => {
           return existing || {
             date: selectedDate,
             staff_id: staffMember.id,
-            status: 'P' as AttendanceStatus,
+            status: '' as AttendanceStatus,
             notes: ''
           };
         });
@@ -266,6 +266,12 @@ const AttendanceManagement: React.FC = () => {
     if (field === 'status') {
       try {
         const record = updated[index];
+
+        // Skip auto-save for empty status (not yet selected)
+        if (!record.status || record.status === '') {
+          console.log('Skipping auto-save for unselected status:', record.student_id || record.staff_id);
+          return;
+        }
 
         if (record.id) {
           // Update existing record immediately
@@ -362,6 +368,12 @@ const AttendanceManagement: React.FC = () => {
           continue;
         }
 
+        // Skip records with empty status (not yet selected)
+        if (!record.status || record.status === '') {
+          console.log('Skipping record with unselected status:', record.student_id || record.staff_id);
+          continue;
+        }
+
         if (record.id) {
           // Update existing record
           const { error: updateError } = await supabase
@@ -441,6 +453,7 @@ const AttendanceManagement: React.FC = () => {
       case 'P': return 'bg-success-100 text-success-800 border-success-200';
       case 'A': return 'bg-danger-100 text-danger-800 border-danger-200';
       case 'H': return 'bg-warning-100 text-warning-800 border-warning-200';
+      case '': return 'bg-gray-100 text-gray-600 border-gray-300';
       default: return 'bg-secondary-100 text-secondary-800 border-secondary-200';
     }
   };
@@ -837,6 +850,12 @@ const AttendanceManagement: React.FC = () => {
                 <p className="text-sm text-secondary-600 mt-1">
                   Present: <span className="font-semibold text-success-600">
                     {attendance.filter(a => a.status === 'P').length}
+                  </span> •
+                  Absent: <span className="font-semibold text-danger-600">
+                    {attendance.filter(a => a.status === 'A').length}
+                  </span> •
+                  Unselected: <span className="font-semibold text-gray-600">
+                    {attendance.filter(a => !a.status || a.status === '').length}
                   </span> / {attendance.length} {view === 'students' ? 'Students' : 'Staff'}
                 </p>
               </div>
@@ -956,10 +975,11 @@ const AttendanceManagement: React.FC = () => {
                         </td>
                         <td className="py-3 pr-4">
                           <select
-                            value={record?.status || 'P'}
+                            value={record?.status || ''}
                             onChange={(e) => updateAttendance(attendanceIndex, 'status', e.target.value as AttendanceStatus)}
-                            className={`px-3 py-1 rounded-full text-sm font-medium border ${getStatusColor(record?.status || 'P')}`}
+                            className={`px-3 py-1 rounded-full text-sm font-medium border ${getStatusColor(record?.status || '')}`}
                           >
+                            <option value="">-- Select Status --</option>
                             <option value="P">P - Present</option>
                             <option value="A">A - Absent</option>
                             <option value="H">H - Holiday</option>
