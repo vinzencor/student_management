@@ -40,6 +40,13 @@ const FeeManagementAlert: React.FC<FeeManagementAlertProps> = ({ setActiveView }
 
   useEffect(() => {
     loadStudentsWithUnpaidFees();
+
+    // Set up an interval to refresh data every 30 seconds to reflect payment updates
+    const interval = setInterval(() => {
+      loadStudentsWithUnpaidFees();
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const loadStudentsWithUnpaidFees = async () => {
@@ -112,6 +119,7 @@ const FeeManagementAlert: React.FC<FeeManagementAlertProps> = ({ setActiveView }
           });
 
         setStudents(studentsWithFees);
+        console.log('✅ Fee Management Alert: Loaded', studentsWithFees.length, 'students with fees');
       } catch (dbError) {
         console.log('Database tables not ready, using mock data for demo');
         

@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Printer, Download, Search, Calendar, Filter, Receipt, Eye, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import AddFeePaymentModal from './modals/AddFeePaymentModal';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 interface FeeReceipt {
   id: string;
@@ -191,6 +193,12 @@ const FeeReceipts: React.FC = () => {
             </div>
             <div class="receipt-title">FEE PAYMENT RECEIPT</div>
             <div class="receipt-number">Receipt No: ${receipt.receipt_number}</div>
+            <div style="font-size: 12px; color: #666; margin-top: 10px; line-height: 1.4;">
+              <strong>School Address:</strong><br>
+              123 Education Street, Knowledge District<br>
+              Doha, Qatar - 12345<br>
+              Phone: +974 1234 5678 | Email: info@school.edu.qa
+            </div>
           </div>
 
           <div class="details">
@@ -249,9 +257,114 @@ const FeeReceipts: React.FC = () => {
   };
 
   const downloadReceiptPDF = async (receipt: FeeReceipt) => {
-    // For now, we'll use the print functionality
-    // In a production environment, you might want to use a library like jsPDF
-    printReceipt(receipt);
+    try {
+      // Create a temporary div with the receipt HTML
+      const tempDiv = document.createElement('div');
+      tempDiv.style.position = 'absolute';
+      tempDiv.style.left = '-9999px';
+      tempDiv.style.top = '-9999px';
+      tempDiv.style.width = '800px';
+      tempDiv.style.backgroundColor = 'white';
+
+      const receiptHTML = `
+        <div style="font-family: Arial, sans-serif; padding: 30px; background: white; width: 100%; box-sizing: border-box;">
+          <div style="text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px;">
+            <div style="text-align: center; margin-bottom: 10px;">
+              <img src="/Logo.jpeg" alt="School Logo" style="height: 60px; width: auto; margin: 0 auto; display: block;" onerror="this.style.display='none';" />
+            </div>
+            <div style="font-size: 24px; font-weight: bold; color: #2563eb; margin-top: 15px;">FEE PAYMENT RECEIPT</div>
+            <div style="font-size: 14px; color: #666; margin-top: 5px;">Receipt No: ${receipt.receipt_number}</div>
+            <div style="font-size: 12px; color: #666; margin-top: 10px; line-height: 1.4;">
+              <strong>School Address:</strong><br>
+              123 Education Street, Knowledge District<br>
+              Doha, Qatar - 12345<br>
+              Phone: +974 1234 5678 | Email: info@school.edu.qa
+            </div>
+          </div>
+
+          <div style="margin: 30px 0;">
+            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee;">
+              <span style="font-weight: bold; color: #333; width: 40%;">Student Name:</span>
+              <span style="color: #666; width: 60%; text-align: right;">${receipt.student_name}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee;">
+              <span style="font-weight: bold; color: #333; width: 40%;">Course:</span>
+              <span style="color: #666; width: 60%; text-align: right;">${receipt.course_name}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee;">
+              <span style="font-weight: bold; color: #333; width: 40%;">Payment Date:</span>
+              <span style="color: #666; width: 60%; text-align: right;">${new Date(receipt.payment_date).toLocaleDateString()}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee;">
+              <span style="font-weight: bold; color: #333; width: 40%;">Payment Method:</span>
+              <span style="color: #666; width: 60%; text-align: right;">${receipt.payment_method}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 12px 0;">
+              <span style="font-weight: bold; color: #333; width: 40%;">Description:</span>
+              <span style="color: #666; width: 60%; text-align: right;">${receipt.description}</span>
+            </div>
+          </div>
+
+          <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 30px 0; border: 1px solid #dee2e6;">
+            <div style="font-size: 24px; font-weight: bold; color: #28a745; text-align: center;">
+              Amount Paid: QAR ${receipt.amount_paid.toLocaleString()}
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; margin-top: 40px;">
+            <div style="text-align: center; width: 45%;">
+              <div style="border-top: 1px solid #333; margin-top: 40px; padding-top: 5px; font-size: 12px; color: #666;">
+                Student Signature
+              </div>
+            </div>
+            <div style="text-align: center; width: 45%;">
+              <div style="border-top: 1px solid #333; margin-top: 40px; padding-top: 5px; font-size: 12px; color: #666;">
+                Authorized Signature
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #333; text-align: center;">
+            <p style="margin: 0; font-size: 14px; color: #666;">
+              Thank you for your payment. Please keep this receipt for your records.
+            </p>
+            <div style="font-size: 12px; color: #999; margin-top: 20px;">
+              Generated on: ${new Date().toLocaleString()}
+            </div>
+          </div>
+        </div>
+      `;
+
+      tempDiv.innerHTML = receiptHTML;
+      document.body.appendChild(tempDiv);
+
+      // Use html2canvas to convert to image, then jsPDF to create PDF
+      const canvas = await html2canvas(tempDiv, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff'
+      });
+
+      // Remove temporary div
+      document.body.removeChild(tempDiv);
+
+      // Create PDF
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgData = canvas.toDataURL('image/png');
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+
+      // Download the PDF
+      pdf.save(`Fee_Receipt_${receipt.receipt_number}.pdf`);
+
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF. Please try again.');
+    }
   };
 
   const handleDeleteReceipt = (receiptId: string, receiptNumber: string) => {

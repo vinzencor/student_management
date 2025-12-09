@@ -556,6 +556,8 @@ const Accounts: React.FC = () => {
     { value: 'Travel', hasSubCategory: false },
     { value: 'Food & Beverages', hasSubCategory: false },
     { value: 'Equipment', hasSubCategory: false },
+    { value: 'Govt Fees', hasSubCategory: false },
+    { value: 'Operating Expense', hasSubCategory: false },
     { value: 'Other', hasSubCategory: false }
   ];
 

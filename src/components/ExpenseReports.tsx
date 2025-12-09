@@ -127,6 +127,8 @@ const ExpenseReports: React.FC = () => {
           { name: 'Travel', hasSubCategory: false },
           { name: 'Food & Beverages', hasSubCategory: false },
           { name: 'Equipment', hasSubCategory: false },
+          { name: 'Govt Fees', hasSubCategory: false },
+          { name: 'Operating Expense', hasSubCategory: false },
           { name: 'Other', hasSubCategory: false }
         ]);
         return;
