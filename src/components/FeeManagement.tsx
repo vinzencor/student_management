@@ -301,8 +301,8 @@ const FeeManagement: React.FC = () => {
   };
 
   const totalAmount = fees.reduce((sum, fee) => sum + fee.amount, 0);
-  const paidAmount = fees.filter(fee => fee.status === 'paid').reduce((sum, fee) => sum + fee.amount, 0);
-  const overdueAmount = fees.filter(fee => fee.status === 'overdue').reduce((sum, fee) => sum + fee.amount, 0);
+  const paidAmount = fees.reduce((sum, fee) => sum + (fee.paid_amount || 0), 0);
+  const overdueAmount = fees.filter(fee => fee.status === 'overdue').reduce((sum, fee) => sum + (fee.remaining_amount || 0), 0);
 
   const handleSendReminder = async (feeId: string) => {
     try {

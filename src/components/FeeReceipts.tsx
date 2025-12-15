@@ -30,7 +30,7 @@ const FeeReceipts: React.FC = () => {
   const [showAddFeeModal, setShowAddFeeModal] = useState(false);
   const [students, setStudents] = useState<any[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
-  const [deleteConfirm, setDeleteConfirm] = useState<{show: boolean, receiptId: string, receiptNumber: string}>({
+  const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean, receiptId: string, receiptNumber: string }>({
     show: false,
     receiptId: '',
     receiptNumber: ''
@@ -194,10 +194,12 @@ const FeeReceipts: React.FC = () => {
             <div class="receipt-title">FEE PAYMENT RECEIPT</div>
             <div class="receipt-number">Receipt No: ${receipt.receipt_number}</div>
             <div style="font-size: 12px; color: #666; margin-top: 10px; line-height: 1.4;">
-              <strong>School Address:</strong><br>
-              123 Education Street, Knowledge District<br>
-              Doha, Qatar - 12345<br>
-              Phone: +974 1234 5678 | Email: info@school.edu.qa
+              <strong>Address:</strong><br>
+              FZA administrative building number 43 
+Street 517 
+Zone 49 
+P.O. Box 258<br>
+              Phone: +97477760849 | Email: info@sakirmyna.com
             </div>
           </div>
 
@@ -275,10 +277,12 @@ const FeeReceipts: React.FC = () => {
             <div style="font-size: 24px; font-weight: bold; color: #2563eb; margin-top: 15px;">FEE PAYMENT RECEIPT</div>
             <div style="font-size: 14px; color: #666; margin-top: 5px;">Receipt No: ${receipt.receipt_number}</div>
             <div style="font-size: 12px; color: #666; margin-top: 10px; line-height: 1.4;">
-              <strong>School Address:</strong><br>
-              123 Education Street, Knowledge District<br>
-              Doha, Qatar - 12345<br>
-              Phone: +974 1234 5678 | Email: info@school.edu.qa
+              <strong>Address:</strong><br>
+              FZA administrative building number 43 
+              Street 517 
+              Zone 49 
+              P.O. Box 258<br>
+              Phone: +97477760849 | Email: info@sakirmyna.com
             </div>
           </div>
 
@@ -489,7 +493,7 @@ const FeeReceipts: React.FC = () => {
         <div className="p-6 border-b border-secondary-200">
           <h3 className="text-xl font-semibold text-secondary-800">Fee Payment Receipts</h3>
         </div>
-        
+
         {loading ? (
           <div className="p-8 text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
