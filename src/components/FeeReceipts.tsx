@@ -281,8 +281,62 @@ P.O. Box 258<br>
     printWindow.print();
   };
 
+  // Helper function to convert image to base64
+  const getImageAsBase64 = (src: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+
+      const timeout = setTimeout(() => {
+        console.warn(`Image loading timeout for: ${src}`);
+        resolve(''); // Return empty string on timeout
+      }, 5000);
+
+      img.onload = () => {
+        clearTimeout(timeout);
+        try {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve('');
+            return;
+          }
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/png'));
+        } catch (error) {
+          console.error(`Error converting image to base64: ${src}`, error);
+          resolve('');
+        }
+      };
+
+      img.onerror = (error) => {
+        clearTimeout(timeout);
+        console.error(`Error loading image: ${src}`, error);
+        resolve(''); // Return empty string if image fails to load
+      };
+
+      img.src = src;
+    });
+  };
+
   const downloadReceiptPDF = async (receipt: FeeReceipt) => {
     try {
+      console.log('Starting PDF generation for receipt:', receipt.receipt_number);
+
+      // Convert images to base64 for better PDF generation
+      console.log('Loading images...');
+      const logoBase64 = await getImageAsBase64('/Logo.jpeg');
+      const sealBase64 = await getImageAsBase64('/Seal.png');
+      const signBase64 = await getImageAsBase64('/Sign.png');
+
+      console.log('Images loaded:', {
+        logo: logoBase64 ? 'Success' : 'Failed',
+        seal: sealBase64 ? 'Success' : 'Failed',
+        sign: signBase64 ? 'Success' : 'Failed'
+      });
+
       // Create a temporary div with the receipt HTML
       const tempDiv = document.createElement('div');
       tempDiv.style.position = 'absolute';
@@ -292,18 +346,18 @@ P.O. Box 258<br>
       tempDiv.style.backgroundColor = 'white';
 
       const receiptHTML = `
-        <div style="font-family: Arial, sans-serif; padding: 30px; background: white; width: 100%; box-sizing: border-box;">
+        <div style="font-family: Arial, sans-serif; padding: 30px; background: white; width: 100%; box-sizing: border-box; position: relative;">
           <div style="text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px;">
             <div style="text-align: center; margin-bottom: 10px;">
-              <img src="/Logo.jpeg" alt="School Logo" style="height: 60px; width: auto; margin: 0 auto; display: block;" onerror="this.style.display='none';" />
+              ${logoBase64 ? `<img src="${logoBase64}" alt="School Logo" style="height: 60px; width: auto; margin: 0 auto; display: block;" />` : ''}
             </div>
             <div style="font-size: 24px; font-weight: bold; color: #2563eb; margin-top: 15px;">FEE PAYMENT RECEIPT</div>
             <div style="font-size: 14px; color: #666; margin-top: 5px;">Receipt No: ${receipt.receipt_number}</div>
             <div style="font-size: 12px; color: #666; margin-top: 10px; line-height: 1.4;">
               <strong>Address:</strong><br>
-              FZA administrative building number 43 
-              Street 517 
-              Zone 49 
+              FZA administrative building number 43
+              Street 517
+              Zone 49
               P.O. Box 258<br>
               Phone: +97477760849 | Email: info@sakirmyna.com
             </div>
@@ -359,18 +413,45 @@ P.O. Box 258<br>
               Generated on: ${new Date().toLocaleString()}
             </div>
           </div>
+
+          <!-- Signature and Seal Images -->
+          <div style="position: absolute; right: 40px; bottom: 140px; text-align: right;">
+            ${sealBase64 ? `<img src="${sealBase64}" alt="Official Seal" style="display: block; max-width: 120px; height: auto; margin-bottom: 8px;" />` : ''}
+            ${signBase64 ? `<img src="${signBase64}" alt="Authorized Signature" style="display: block; max-width: 120px; height: auto; margin-bottom: 8px;" />` : ''}
+          </div>
         </div>
       `;
 
       tempDiv.innerHTML = receiptHTML;
       document.body.appendChild(tempDiv);
 
+      // Wait for images to load before capturing
+      const images = tempDiv.querySelectorAll('img');
+      const imagePromises = Array.from(images).map(img => {
+        return new Promise((resolve) => {
+          if (img.complete) {
+            resolve(true);
+          } else {
+            img.onload = () => resolve(true);
+            img.onerror = () => resolve(true); // Continue even if image fails to load
+            // Timeout after 3 seconds
+            setTimeout(() => resolve(true), 3000);
+          }
+        });
+      });
+
+      // Wait for all images to load or timeout
+      await Promise.all(imagePromises);
+
       // Use html2canvas to convert to image, then jsPDF to create PDF
       const canvas = await html2canvas(tempDiv, {
         scale: 2,
         useCORS: true,
         allowTaint: true,
-        backgroundColor: '#ffffff'
+        backgroundColor: '#ffffff',
+        logging: false,
+        imageTimeout: 5000,
+        removeContainer: true
       });
 
       // Remove temporary div
@@ -387,6 +468,7 @@ P.O. Box 258<br>
 
       // Download the PDF
       pdf.save(`Fee_Receipt_${receipt.receipt_number}.pdf`);
+      console.log('PDF generated and downloaded successfully');
 
     } catch (error) {
       console.error('Error generating PDF:', error);
