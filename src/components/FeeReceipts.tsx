@@ -83,12 +83,14 @@ const FeeReceipts: React.FC = () => {
             background: white;
           }
           .receipt {
-            max-width: 600px;
-            margin: 0 auto;
-            border: 2px solid #333;
-            padding: 30px;
-            background: white;
-          }
+  position: relative;
+  max-width: 600px;
+  margin: 0 auto;
+  border: 2px solid #333;
+  padding: 30px;
+  background: white;
+}
+
           .header {
             text-align: center;
             border-bottom: 2px solid #333;
@@ -179,6 +181,20 @@ const FeeReceipts: React.FC = () => {
             color: #999;
             margin-top: 20px;
           }
+ .right-images {
+  position: absolute;
+  right: 40px;
+  bottom: 140px; /* controls vertical position */
+  text-align: right;
+}
+
+.right-images img {
+  display: block;
+  max-width: 120px;
+  height: auto;
+  margin-bottom: 8px;
+}
+
           @media print {
             body { margin: 0; padding: 10px; }
             .receipt { border: 1px solid #333; }
@@ -247,6 +263,13 @@ P.O. Box 258<br>
               Generated on: ${new Date().toLocaleString()}
             </div>
           </div>
+          <div class="right-images">
+  <img src="/Seal.png" alt="Official Seal"
+       onerror="this.style.display='none';" />
+  <img src="/Sign.png" alt="Authorized Signature"
+       onerror="this.style.display='none';" />
+</div>
+
         </div>
       </body>
       </html>
