@@ -9,11 +9,11 @@ interface Transaction {
   date: string;
   amount: number;
   category: string;
-  sub_category?: string;
-  related_id?: string;
+  sub_category?: string | null;
+  related_id?: string | null;
   payment_mode: string;
   description: string;
-  image_url?: string;
+  image_url?: string | null;
   source?: string; // 'manual', 'external_payment', 'fee_management'
   created_at?: string;
 }
@@ -42,11 +42,11 @@ const ExpenseReports: React.FC = () => {
     date: new Date().toISOString().split('T')[0],
     amount: 0,
     category: '',
-    sub_category: '',
-    related_id: '',
+    sub_category: null,
+    related_id: null,
     payment_mode: '',
     description: '',
-    image_url: ''
+    image_url: null
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -151,8 +151,8 @@ const ExpenseReports: React.FC = () => {
     setFormData({
       ...formData,
       category,
-      sub_category: '',
-      related_id: '',
+      sub_category: null, // Use null instead of empty string
+      related_id: null,   // Use null instead of empty string
       amount: 0
     });
     setSubSearch('');
@@ -203,11 +203,11 @@ const ExpenseReports: React.FC = () => {
       date: new Date().toISOString().split('T')[0],
       amount: 0,
       category: '',
-      sub_category: '',
-      related_id: '',
+      sub_category: null, // Use null instead of empty string
+      related_id: null,   // Use null instead of empty string
       payment_mode: '',
       description: '',
-      image_url: ''
+      image_url: null     // Use null instead of empty string
     });
     setImageFile(null);
     setSubSearch('');
@@ -218,23 +218,54 @@ const ExpenseReports: React.FC = () => {
 
   // Image upload functionality
   const handleImageUpload = async (file: File): Promise<string> => {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Date.now()}.${fileExt}`;
-    const filePath = `transaction-images/${fileName}`;
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `transaction-images/${fileName}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from('transaction-images')
-      .upload(filePath, file);
+      const { error: uploadError } = await supabase.storage
+        .from('transaction-images')
+        .upload(filePath, file);
 
-    if (uploadError) {
-      throw uploadError;
+      if (uploadError) {
+        // If bucket doesn't exist, create it and try again
+        if (uploadError.message?.includes('Bucket not found')) {
+          console.log('Creating transaction-images bucket...');
+
+          // Try to create the bucket
+          const { error: bucketError } = await supabase.storage.createBucket('transaction-images', {
+            public: true,
+            allowedMimeTypes: ['image/*'],
+            fileSizeLimit: 5242880 // 5MB
+          });
+
+          if (bucketError && !bucketError.message?.includes('already exists')) {
+            console.error('Failed to create bucket:', bucketError);
+            throw new Error('Failed to create storage bucket. Please contact administrator.');
+          }
+
+          // Retry upload after creating bucket
+          const { error: retryError } = await supabase.storage
+            .from('transaction-images')
+            .upload(filePath, file);
+
+          if (retryError) {
+            throw retryError;
+          }
+        } else {
+          throw uploadError;
+        }
+      }
+
+      const { data } = supabase.storage
+        .from('transaction-images')
+        .getPublicUrl(filePath);
+
+      return data.publicUrl;
+    } catch (error: any) {
+      console.error('Image upload error:', error);
+      throw new Error(`Failed to upload image: ${error.message || 'Unknown error'}`);
     }
-
-    const { data } = supabase.storage
-      .from('transaction-images')
-      .getPublicUrl(filePath);
-
-    return data.publicUrl;
   };
 
   // Submit form
@@ -257,13 +288,18 @@ const ExpenseReports: React.FC = () => {
         imageUrl = await handleImageUpload(imageFile);
       }
 
+      // Clean up the form data - convert empty strings to null for UUID fields
+      const cleanedFormData = {
+        ...formData,
+        image_url: imageUrl,
+        related_id: formData.related_id?.trim() || null, // Convert empty string to null
+        sub_category: formData.sub_category?.trim() || null // Convert empty string to null
+      };
+
       // Insert transaction
       const { error } = await supabase
         .from('transactions')
-        .insert([{
-          ...formData,
-          image_url: imageUrl
-        }]);
+        .insert([cleanedFormData]);
 
       if (error) {
         if (error.code === 'PGRST205') {
@@ -594,7 +630,7 @@ const ExpenseReports: React.FC = () => {
                         </div>
                         <button
                           type="button"
-                          onClick={() => setFormData({ ...formData, sub_category: '', related_id: '' })}
+                          onClick={() => setFormData({ ...formData, sub_category: null, related_id: null })}
                           className="text-red-500 hover:text-red-700 p-2 hover:bg-red-50 rounded-lg transition-colors"
                           title="Remove selection"
                         >
@@ -660,7 +696,7 @@ const ExpenseReports: React.FC = () => {
                   {formData.sub_category && (
                     <button
                       type="button"
-                      onClick={() => setFormData({ ...formData, sub_category: '', related_id: '' })}
+                      onClick={() => setFormData({ ...formData, sub_category: null, related_id: null })}
                       className="w-full mt-3 px-4 py-2 border border-red-300 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm font-medium"
                     >
                       Change Selection
